@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: relay-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/relay}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+
+server:
+  port: 8080
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+  ai:
+    api-base: ${AI_API_BASE:https://api.openai.com/v1}
+  security:
+    jwt-secret: ${JWT_SECRET:change-me-in-env}
+  mail:
+    host: ${QQ_SMTP_HOST:smtp.qq.com}
+    port: ${QQ_SMTP_PORT:465}
+    username: ${QQ_SMTP_USERNAME:}
+    password: ${QQ_SMTP_PASSWORD:}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+    max-requests: ${RATE_LIMIT_MAX_REQUESTS:60}
