@@ -47,6 +47,7 @@ create table if not exists request_logs (
   cost numeric(18, 6) not null default 0,
   ip text,
   status text,
+  upstream_service_id bigint,
   detail text not null default '',
   created_at timestamp with time zone not null default now()
 );
@@ -64,7 +65,30 @@ create table if not exists openai_services (
   id bigserial primary key,
   api_endpoint text not null,
   token text not null,
+  request_mode int not null default 1,
   concurrent_limit int not null default 20,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+alter table openai_services
+  add column if not exists request_mode int not null default 1;
+
+create table if not exists openai_codex_profiles (
+  id bigserial primary key,
+  openai_service_id bigint not null unique references openai_services(id) on delete cascade,
+  profile_name text not null,
+  auth_mode text not null default 'chatgpt',
+  openai_api_key text,
+  access_token text,
+  account_id text,
+  id_token text,
+  refresh_token text,
+  client_id text,
+  base_url text,
+  model text,
+  reasoning_effort text,
+  last_refresh timestamp with time zone,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
@@ -97,3 +121,5 @@ create index if not exists idx_request_logs_user_id_created_at
   on request_logs(user_id, created_at desc);
 create index if not exists idx_recharge_orders_user_id_created_at
   on recharge_orders(user_id, created_at desc);
+create index if not exists idx_openai_codex_profiles_service_id
+  on openai_codex_profiles(openai_service_id);

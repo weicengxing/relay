@@ -23,9 +23,9 @@ public class RequestLogRepository {
         insert into request_logs (
           user_id, api_key_id, token_name, group_key, request_type, client_type, model,
           use_time_ms, first_token_ms, prompt_tokens, completion_tokens,
-          cache_read_tokens, cache_creation_tokens, cost, ip, status, detail, created_at
+          cache_read_tokens, cache_creation_tokens, cost, ip, status, upstream_service_id, detail, created_at
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         log.userId(),
         log.apiKeyId(),
@@ -43,6 +43,7 @@ public class RequestLogRepository {
         log.cost(),
         log.ip(),
         log.status(),
+        log.upstreamServiceId(),
         log.detail(),
         Timestamp.from(log.createdAt()));
   }
@@ -52,7 +53,7 @@ public class RequestLogRepository {
         """
         select id, user_id, api_key_id, token_name, group_key, request_type, client_type, model,
                use_time_ms, first_token_ms, prompt_tokens, completion_tokens,
-               cache_read_tokens, cache_creation_tokens, cost, ip, status, detail, created_at
+               cache_read_tokens, cache_creation_tokens, cost, ip, status, upstream_service_id, detail, created_at
         from request_logs
         where user_id = ?
         order by created_at desc
@@ -82,6 +83,7 @@ public class RequestLogRepository {
         rs.getBigDecimal("cost"),
         rs.getString("ip"),
         rs.getString("status"),
+        rs.getObject("upstream_service_id", Long.class),
         rs.getString("detail"),
         rs.getTimestamp("created_at").toInstant());
   }

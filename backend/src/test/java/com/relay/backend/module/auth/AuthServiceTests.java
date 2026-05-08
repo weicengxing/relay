@@ -62,4 +62,23 @@ class AuthServiceTests {
 
     assertThat(count).isEqualTo(1);
   }
+
+  @Test
+  void schemaContainsCodexProfileModeTables() {
+    Integer requestModeColumns =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from information_schema.columns
+            where table_name = 'openai_services' and column_name = 'request_mode'
+            """,
+            Integer.class);
+    Integer codexProfileTables =
+        jdbcTemplate.queryForObject(
+            "select count(*) from information_schema.tables where table_name = 'openai_codex_profiles'",
+            Integer.class);
+
+    assertThat(requestModeColumns).isEqualTo(1);
+    assertThat(codexProfileTables).isEqualTo(1);
+  }
 }

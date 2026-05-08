@@ -20,4 +20,5 @@ public record RequestLogResponse(
     BigDecimal cost,
     String ip,
     String status,
+    Long upstreamServiceId,
     List<String> detailLines) {}

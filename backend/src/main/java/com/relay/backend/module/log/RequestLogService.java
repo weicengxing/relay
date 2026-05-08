@@ -8,18 +8,19 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RequestLogService {
 
+  private static final Logger log = LoggerFactory.getLogger(RequestLogService.class);
   private static final BigDecimal MILLION = BigDecimal.valueOf(1_000_000L);
   private static final Pattern MODEL_PATTERN = Pattern.compile("\"model\"\\s*:\\s*\"([^\"]+)\"");
   private static final Pattern NAME_PATTERN = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
@@ -48,33 +49,38 @@ public class RequestLogService {
     this.modelCatalogRepository = modelCatalogRepository;
   }
 
-  public void recordProxyRequest(ProxyRequestLogContext context) {
-    ParsedUsage usage = parseUsage(context);
-    ModelCatalogItem price = findPrice(usage.model());
-    BigDecimal cost = calculateCost(usage, price);
-    List<String> details = buildDetails(context, usage, price);
+  @Async("requestLogExecutor")
+  public void recordProxyRequestAsync(ProxyRequestLogContext context) {
+    try {
+      ParsedUsage usage = parseUsage(context);
+      ModelCatalogItem price = findPrice(usage.model());
+      BigDecimal cost = calculateCost(usage, price);
 
-    requestLogRepository.save(
-        new RequestLogRecord(
-            null,
-            context.apiKey().userId(),
-            context.apiKey().id(),
-            displayToken(context.apiKey()),
-            displayGroup(context.apiKey()),
-            "消费",
-            context.clientType().name(),
-            usage.model(),
-            safeInt(context.useTimeMs()),
-            safeInt(context.firstTokenMs()),
-            usage.inputTokens(),
-            usage.outputTokens(),
-            usage.cacheReadTokens(),
-            usage.cacheCreationTokens(),
-            cost,
-            emptyToNull(context.clientIp()),
-            statusLabel(context.statusCode()),
-            String.join("\n", details),
-            Instant.now()));
+      requestLogRepository.save(
+          new RequestLogRecord(
+              null,
+              context.apiKey().userId(),
+              context.apiKey().id(),
+              displayToken(context.apiKey()),
+              displayGroup(context.apiKey()),
+              "usage",
+              context.clientType().name(),
+              usage.model(),
+              safeInt(context.useTimeMs()),
+              safeInt(context.firstTokenMs()),
+              usage.inputTokens(),
+              usage.outputTokens(),
+              usage.cacheReadTokens(),
+              usage.cacheCreationTokens(),
+              cost,
+              emptyToNull(context.clientIp()),
+              statusLabel(context.statusCode()),
+              context.upstreamServiceId(),
+              UpstreamResponseDetailCodec.encode(context.responseBody()),
+              Instant.now()));
+    } catch (Exception exception) {
+      log.warn("Unable to write request log", exception);
+    }
   }
 
   public List<RequestLogResponse> list(UUID userId, int limit) {
@@ -100,6 +106,7 @@ public class RequestLogService {
         record.cost(),
         record.ip(),
         record.status(),
+        record.upstreamServiceId(),
         splitDetail(record.detail()));
   }
 
@@ -243,47 +250,12 @@ public class RequestLogService {
     return cost.setScale(6, RoundingMode.HALF_UP);
   }
 
-  private List<String> buildDetails(ProxyRequestLogContext context, ParsedUsage usage, ModelCatalogItem price) {
-    List<String> lines = new ArrayList<>();
-    lines.add("客户端: " + context.clientType().name().toLowerCase(Locale.ROOT));
-    lines.add("请求: " + context.requestMethod() + " " + requestTarget(context));
-    lines.add("流式: " + (context.firstTokenMs() < context.useTimeMs() ? "是" : "否"));
-
-    if (price != null) {
-      lines.add("输入 $" + formatPrice(price.inputPrice()) + " / 1M tokens");
-      lines.add("输出 $" + formatPrice(price.outputPrice()) + " / 1M tokens");
-      lines.add("缓存读 $" + formatPrice(price.cachedInputPrice()) + " / 1M tokens");
-      lines.add("缓存写 $" + formatPrice(price.cacheCreationPrice()) + " / 1M tokens");
-    } else {
-      lines.add("价格: 未配置");
-    }
-
-    if (usage.cacheReadTokens() > 0) {
-      lines.add("缓存读 tokens " + usage.cacheReadTokens());
-    }
-    if (usage.cacheCreationTokens() > 0) {
-      lines.add("缓存写 tokens " + usage.cacheCreationTokens());
-    }
-
-    return lines;
-  }
-
-  private String requestTarget(ProxyRequestLogContext context) {
-    if (context.queryString() == null || context.queryString().isBlank()) {
-      return context.requestUri();
-    }
-    return context.requestUri() + "?" + context.queryString();
-  }
-
-  private String formatPrice(BigDecimal price) {
-    return price.stripTrailingZeros().toPlainString();
-  }
-
   private List<String> splitDetail(String detail) {
-    if (detail == null || detail.isBlank()) {
+    String decoded = UpstreamResponseDetailCodec.decode(detail);
+    if (decoded == null || decoded.isBlank()) {
       return List.of();
     }
-    return detail.lines().toList();
+    return decoded.lines().toList();
   }
 
   private String displayToken(ApiKeyRecord apiKey) {

@@ -9,6 +9,9 @@ spring:
   data:
     redis:
       url: ${REDIS_URL:rediss://default:gQAAAAAAAUiYAAIgcDFlNjgxYmQwZjYyMTk0YWUyOWJiMDgzNGRlMzdlYjQ0Ng@aware-corgi-84120.upstash.io:6379}
+  mvc:
+    async:
+      request-timeout: 10m
 
 server:
   port: 8080

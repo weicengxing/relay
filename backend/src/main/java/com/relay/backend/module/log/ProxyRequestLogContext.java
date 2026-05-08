@@ -15,6 +15,7 @@ public record ProxyRequestLogContext(
     String userAgent,
     byte[] requestBody,
     byte[] responseBody,
+    Long upstreamServiceId,
     Map<String, List<String>> responseHeaders,
     int statusCode,
     long useTimeMs,

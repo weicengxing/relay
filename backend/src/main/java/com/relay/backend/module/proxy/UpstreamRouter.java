@@ -28,10 +28,26 @@ public class UpstreamRouter {
     List<UpstreamConfig> configs =
         switch (clientType) {
           case CODEX -> openAiServiceRepository.findAll().stream()
-              .map(config -> new UpstreamConfig(config.id(), config.apiEndpoint(), config.token(), config.concurrentLimit()))
+              .map(
+                  config ->
+                      new UpstreamConfig(
+                          config.id(),
+                          config.apiEndpoint(),
+                          config.token(),
+                          config.requestMode(),
+                          config.concurrentLimit(),
+                          config.codexProfile()))
               .toList();
           case CLAUDE -> claudeServiceRepository.findAll().stream()
-              .map(config -> new UpstreamConfig(config.id(), config.apiEndpoint(), config.token(), config.concurrentLimit()))
+              .map(
+                  config ->
+                      new UpstreamConfig(
+                          config.id(),
+                          config.apiEndpoint(),
+                          config.token(),
+                          1,
+                          config.concurrentLimit(),
+                          null))
               .toList();
           default -> throw new AppException(ErrorCode.VALIDATION_FAILED, "Unknown client type", HttpStatus.BAD_REQUEST);
         };

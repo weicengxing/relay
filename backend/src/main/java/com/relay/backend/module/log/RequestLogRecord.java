@@ -22,5 +22,6 @@ public record RequestLogRecord(
     BigDecimal cost,
     String ip,
     String status,
+    Long upstreamServiceId,
     String detail,
     Instant createdAt) {}
