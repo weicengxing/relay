@@ -12,6 +12,7 @@ public class AppProperties {
   private final Security security = new Security();
   private final Mail mail = new Mail();
   private final RateLimit rateLimit = new RateLimit();
+  private final Verification verification = new Verification();
 
   public Cors getCors() {
     return cors;
@@ -31,6 +32,10 @@ public class AppProperties {
 
   public RateLimit getRateLimit() {
     return rateLimit;
+  }
+
+  public Verification getVerification() {
+    return verification;
   }
 
   public static class Cors {
@@ -74,6 +79,7 @@ public class AppProperties {
     private int port = 465;
     private String username = "";
     private String password = "";
+    private String from = "";
 
     public String getHost() {
       return host;
@@ -106,6 +112,14 @@ public class AppProperties {
     public void setPassword(String password) {
       this.password = password;
     }
+
+    public String getFrom() {
+      return from;
+    }
+
+    public void setFrom(String from) {
+      this.from = from;
+    }
   }
 
   public static class RateLimit {
@@ -135,6 +149,18 @@ public class AppProperties {
 
     public void setMaxRequests(int maxRequests) {
       this.maxRequests = maxRequests;
+    }
+  }
+
+  public static class Verification {
+    private int codeTtlMinutes = 10;
+
+    public int getCodeTtlMinutes() {
+      return codeTtlMinutes;
+    }
+
+    public void setCodeTtlMinutes(int codeTtlMinutes) {
+      this.codeTtlMinutes = codeTtlMinutes;
     }
   }
 }

@@ -8,5 +8,7 @@ public record RegisterRequest(
     @NotBlank
         @Pattern(regexp = "^[1-9][0-9]{4,11}@qq\\.com$", message = "Only numeric QQ email is allowed")
         String email,
-    @NotBlank @Size(min = 8, max = 72) String password) {}
+    @NotBlank @Size(min = 8, max = 72) String password,
+    @NotBlank @Pattern(regexp = "^[0-9]{6}$", message = "Verification code must be 6 digits")
+        String verificationCode) {}
 

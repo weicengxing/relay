@@ -1,6 +1,7 @@
 package com.relay.backend.common.ratelimit;
 
 import com.relay.backend.common.error.ErrorCode;
+import com.relay.backend.common.redis.RedisStateService;
 import com.relay.backend.common.web.ClientIpResolver;
 import com.relay.backend.config.AppProperties;
 import jakarta.servlet.FilterChain;
@@ -8,12 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,19 +21,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
   private final AppProperties appProperties;
   private final ClientIpResolver clientIpResolver;
-  private final Clock clock;
-  private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
+  private final RedisStateService redisStateService;
 
   @Autowired
-  public RateLimitFilter(AppProperties appProperties, ClientIpResolver clientIpResolver) {
-    this(appProperties, clientIpResolver, Clock.systemUTC());
-  }
-
   RateLimitFilter(
-      AppProperties appProperties, ClientIpResolver clientIpResolver, Clock clock) {
+      AppProperties appProperties,
+      ClientIpResolver clientIpResolver,
+      RedisStateService redisStateService) {
     this.appProperties = appProperties;
     this.clientIpResolver = clientIpResolver;
-    this.clock = clock;
+    this.redisStateService = redisStateService;
   }
 
   @Override
@@ -69,22 +62,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
   }
 
   private boolean isLimited(String key) {
-    Instant now = clock.instant();
-    Instant cutoff = now.minusSeconds(appProperties.getRateLimit().getWindowSeconds());
+    int windowSeconds = appProperties.getRateLimit().getWindowSeconds();
     int maxRequests = appProperties.getRateLimit().getMaxRequests();
-
-    Deque<Instant> requests = buckets.computeIfAbsent(key, ignored -> new ArrayDeque<>());
-    synchronized (requests) {
-      while (!requests.isEmpty() && requests.peekFirst().isBefore(cutoff)) {
-        requests.removeFirst();
-      }
-
-      if (requests.size() >= maxRequests) {
-        return true;
-      }
-
-      requests.addLast(now);
-      return false;
-    }
+    long window = System.currentTimeMillis() / (windowSeconds * 1000L);
+    long count =
+        redisStateService.increment(
+            "relay:rate:ip:" + key + ":" + window, Duration.ofSeconds(windowSeconds + 5L));
+    return count > maxRequests;
   }
 }

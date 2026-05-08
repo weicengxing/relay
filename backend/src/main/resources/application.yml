@@ -2,9 +2,13 @@ spring:
   application:
     name: relay-backend
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/relay}
-    username: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD:postgres}
+    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
+    username: ${DATABASE_USERNAME:postgres.klrcrezuwvzdcgjictlm}
+    password: ${DATABASE_PASSWORD:ZHang268115!}
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      url: ${REDIS_URL:rediss://default:gQAAAAAAAUiYAAIgcDFlNjgxYmQwZjYyMTk0YWUyOWJiMDgzNGRlMzdlYjQ0Ng@aware-corgi-84120.upstash.io:6379}
 
 server:
   port: 8080
@@ -20,8 +24,11 @@ app:
   mail:
     host: ${QQ_SMTP_HOST:smtp.qq.com}
     port: ${QQ_SMTP_PORT:465}
-    username: ${QQ_SMTP_USERNAME:}
-    password: ${QQ_SMTP_PASSWORD:}
+    username: ${QQ_SMTP_USERNAME:2997657261@qq.com}
+    password: ${QQ_SMTP_PASSWORD:mlajppzvoexhdddf}
+    from: ${QQ_SMTP_FROM:2997657261@qq.com}
+  verification:
+    code-ttl-minutes: ${VERIFICATION_CODE_TTL_MINUTES:10}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}

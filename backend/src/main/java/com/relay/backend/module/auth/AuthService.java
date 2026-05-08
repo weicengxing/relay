@@ -20,16 +20,22 @@ public class AuthService {
 
   private final UserRepository userRepository;
   private final AuthTokenService authTokenService;
+  private final EmailVerificationService emailVerificationService;
 
-  public AuthService(UserRepository userRepository, AuthTokenService authTokenService) {
+  public AuthService(
+      UserRepository userRepository,
+      AuthTokenService authTokenService,
+      EmailVerificationService emailVerificationService) {
     this.userRepository = userRepository;
     this.authTokenService = authTokenService;
+    this.emailVerificationService = emailVerificationService;
   }
 
   @Transactional
   public AuthResponse register(RegisterRequest request, String registrationIp) {
     UUID userId = UUID.randomUUID();
     String normalizedEmail = request.email().trim().toLowerCase();
+    emailVerificationService.verifyRegisterCode(normalizedEmail, request.verificationCode());
 
     try {
       UserAccount user =

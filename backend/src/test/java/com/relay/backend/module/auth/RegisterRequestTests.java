@@ -13,23 +13,24 @@ class RegisterRequestTests {
 
   @Test
   void acceptsNumericQqEmail() {
-    var violations = validator.validate(new RegisterRequest("123456789@qq.com", "password123"));
+    var violations =
+        validator.validate(new RegisterRequest("123456789@qq.com", "password123", "123456"));
 
     assertThat(violations).isEmpty();
   }
 
   @Test
   void rejectsNonNumericQqEmail() {
-    var violations = validator.validate(new RegisterRequest("relay@qq.com", "password123"));
+    var violations = validator.validate(new RegisterRequest("relay@qq.com", "password123", "123456"));
 
     assertThat(violations).isNotEmpty();
   }
 
   @Test
   void rejectsNonQqEmail() {
-    var violations = validator.validate(new RegisterRequest("123456789@example.com", "password123"));
+    var violations =
+        validator.validate(new RegisterRequest("123456789@example.com", "password123", "123456"));
 
     assertThat(violations).isNotEmpty();
   }
 }
-

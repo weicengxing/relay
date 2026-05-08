@@ -19,11 +19,21 @@ public class OpenAiServiceRepository {
         """
         insert into openai_services (api_endpoint, token)
         values (?, ?)
-        returning id, api_endpoint, token, created_at, updated_at
+        returning id, api_endpoint, token, concurrent_limit, created_at, updated_at
         """,
         this::mapRow,
         apiEndpoint,
         token);
+  }
+
+  public java.util.List<OpenAiServiceConfig> findAll() {
+    return jdbcTemplate.query(
+        """
+        select id, api_endpoint, token, concurrent_limit, created_at, updated_at
+        from openai_services
+        order by id
+        """,
+        this::mapRow);
   }
 
   private OpenAiServiceConfig mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -31,8 +41,8 @@ public class OpenAiServiceRepository {
         rs.getLong("id"),
         rs.getString("api_endpoint"),
         rs.getString("token"),
+        rs.getInt("concurrent_limit"),
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());
   }
 }
-

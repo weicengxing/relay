@@ -12,6 +12,7 @@ create table if not exists api_keys (
   id bigserial primary key,
   user_id uuid not null references users(id),
   key_hash text not null,
+  key_value text,
   name text,
   status text not null default 'active',
   created_at timestamp with time zone not null default now()
@@ -28,6 +29,28 @@ create table if not exists api_logs (
   created_at timestamp with time zone not null default now()
 );
 
+create table if not exists request_logs (
+  id bigserial primary key,
+  user_id uuid not null references users(id),
+  api_key_id bigint not null references api_keys(id),
+  token_name text not null,
+  group_key text not null,
+  request_type text not null default '消费',
+  client_type text not null default 'UNKNOWN',
+  model text,
+  use_time_ms int not null default 0,
+  first_token_ms int not null default 0,
+  prompt_tokens int not null default 0,
+  completion_tokens int not null default 0,
+  cache_read_tokens int not null default 0,
+  cache_creation_tokens int not null default 0,
+  cost numeric(18, 6) not null default 0,
+  ip text,
+  status text,
+  detail text not null default '',
+  created_at timestamp with time zone not null default now()
+);
+
 create table if not exists recharge_orders (
   id bigserial primary key,
   user_id uuid not null references users(id),
@@ -41,11 +64,36 @@ create table if not exists openai_services (
   id bigserial primary key,
   api_endpoint text not null,
   token text not null,
+  concurrent_limit int not null default 20,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
 
+create table if not exists claude_services (
+  id bigserial primary key,
+  api_endpoint text not null,
+  token text not null,
+  concurrent_limit int not null default 20,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists model_catalog (
+  id text primary key,
+  name text not null,
+  provider text not null default 'OpenAI',
+  input_price numeric(12, 4) not null,
+  output_price numeric(12, 4) not null,
+  cached_input_price numeric(12, 4) not null,
+  cache_creation_price numeric(12, 4) not null,
+  tags text not null default '',
+  sort_order int not null default 0,
+  enabled boolean not null default true
+);
+
 create index if not exists idx_api_keys_user_id on api_keys(user_id);
 create index if not exists idx_api_logs_user_id_created_at on api_logs(user_id, created_at desc);
+create index if not exists idx_request_logs_user_id_created_at
+  on request_logs(user_id, created_at desc);
 create index if not exists idx_recharge_orders_user_id_created_at
   on recharge_orders(user_id, created_at desc);

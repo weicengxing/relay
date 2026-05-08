@@ -9,6 +9,7 @@ public final class ErrorCode {
   public static final String CONFLICT = "CONFLICT";
   public static final String RATE_LIMITED = "RATE_LIMITED";
   public static final String INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
+  public static final String INVALID_VERIFICATION_CODE = "INVALID_VERIFICATION_CODE";
   public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 
   private ErrorCode() {}
