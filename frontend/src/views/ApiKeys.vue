@@ -7,6 +7,9 @@ const loading = ref(false);
 const showCreate = ref(false);
 const newKeyName = ref('');
 const newKey = ref(null);
+const visibleKeyIds = ref(new Set());
+const copiedKeyId = ref(null);
+const createError = ref('');
 
 onMounted(async () => {
   loading.value = true;
@@ -18,17 +21,62 @@ onMounted(async () => {
 });
 
 async function handleCreate() {
-  if (!newKeyName.value.trim()) return;
-  const result = await api.createApiKey(newKeyName.value.trim());
-  newKey.value = result;
-  keys.value.push(result);
-  newKeyName.value = '';
-  showCreate.value = false;
+  const name = newKeyName.value.trim();
+  if (!name) return;
+  createError.value = '';
+  if (keys.value.some(k => String(k.name || '').trim().toLowerCase() === name.toLowerCase())) {
+    createError.value = '密钥名称已存在';
+    return;
+  }
+  try {
+    const result = await api.createApiKey(name);
+    newKey.value = result;
+    keys.value.push(result);
+    newKeyName.value = '';
+    showCreate.value = false;
+  } catch (error) {
+    createError.value = error.message || '创建失败';
+  }
 }
 
 async function handleRevoke(id) {
   await api.revokeApiKey(id);
   keys.value = keys.value.filter(k => k.id !== id);
+}
+
+function isKeyVisible(id) {
+  return visibleKeyIds.value.has(id);
+}
+
+function toggleKeyVisibility(id) {
+  const next = new Set(visibleKeyIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  visibleKeyIds.value = next;
+}
+
+function displayKey(key, id) {
+  if (!key || isKeyVisible(id)) {
+    return key || '';
+  }
+  if (key.length <= 22) {
+    return `${key.slice(0, 8)}...`;
+  }
+  return `${key.slice(0, 12)}...${key.slice(-6)}`;
+}
+
+async function copyKey(key, id) {
+  if (!key) return;
+  await navigator.clipboard.writeText(key);
+  copiedKeyId.value = id;
+  window.setTimeout(() => {
+    if (copiedKeyId.value === id) {
+      copiedKeyId.value = null;
+    }
+  }, 1200);
 }
 </script>
 
@@ -59,6 +107,7 @@ async function handleRevoke(id) {
         <input v-model="newKeyName" placeholder="密钥名称，例如：生产环境" class="create-input" />
         <button class="btn-primary" @click="handleCreate">创建</button>
         <button class="btn-ghost" @click="showCreate = false">取消</button>
+        <span v-if="createError" class="create-error">{{ createError }}</span>
       </div>
     </transition>
 
@@ -87,7 +136,47 @@ async function handleRevoke(id) {
         <tbody>
           <tr v-for="k in keys" :key="k.id">
             <td class="td-name">{{ k.name }}</td>
-            <td class="td-key"><code>{{ k.key }}</code></td>
+            <td class="td-key">
+              <div class="key-cell">
+                <code :title="isKeyVisible(k.id) ? k.key : ''">{{ displayKey(k.key, k.id) }}</code>
+                <div class="key-actions">
+                  <button
+                    class="icon-btn"
+                    :class="{ copied: copiedKeyId === k.id }"
+                    type="button"
+                    title="复制密钥"
+                    aria-label="复制密钥"
+                    @click="copyKey(k.key, k.id)"
+                  >
+                    <svg v-if="copiedKeyId === k.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M20 6 9 17l-5-5"/>
+                    </svg>
+                    <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    :title="isKeyVisible(k.id) ? '隐藏密钥' : '显示密钥'"
+                    :aria-label="isKeyVisible(k.id) ? '隐藏密钥' : '显示密钥'"
+                    @click="toggleKeyVisibility(k.id)"
+                  >
+                    <svg v-if="isKeyVisible(k.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="m2 2 20 20"/>
+                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>
+                      <path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5 0 9 4.5 10 8a11.8 11.8 0 0 1-2.3 3.8"/>
+                      <path d="M6.1 6.1C4.1 7.5 2.7 9.6 2 12c1 3.5 5 8 10 8 1.5 0 2.8-.4 4-1"/>
+                    </svg>
+                    <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8S2 12 2 12Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </td>
             <td><span class="pill" :class="k.status">{{ k.status }}</span></td>
             <td class="td-muted">{{ new Date(k.createdAt).toLocaleDateString() }}</td>
             <td><button class="btn-danger-sm" @click="handleRevoke(k.id)">吊销</button></td>
@@ -196,6 +285,8 @@ async function handleRevoke(id) {
 
 .create-bar {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -214,6 +305,12 @@ async function handleRevoke(id) {
 .create-input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.create-error {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .card {
@@ -274,7 +371,48 @@ async function handleRevoke(id) {
 .table tbody tr:last-child td { border-bottom: none; }
 
 .td-name { font-weight: 600; }
-.td-key { max-width: 520px; }
+.td-key { max-width: 560px; }
+
+.key-cell {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.key-cell code {
+  min-width: 0;
+}
+
+.key-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.icon-btn:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-glow);
+}
+
+.icon-btn.copied {
+  color: #047857;
+  background: var(--success-soft);
+}
 
 .table code {
   background: var(--bg);

@@ -1,7 +1,10 @@
 package com.relay.backend.common.redis;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -43,5 +46,26 @@ public class RedisStateService {
 
   public void decrement(String key) {
     redisTemplate.opsForValue().decrement(key);
+  }
+
+  public void replaceSortedSet(String key, Map<String, Double> values) {
+    redisTemplate.delete(key);
+    if (values == null || values.isEmpty()) {
+      return;
+    }
+    values.forEach((value, score) -> redisTemplate.opsForZSet().add(key, value, score));
+  }
+
+  public void addSortedSetValue(String key, String value, double score) {
+    redisTemplate.opsForZSet().add(key, value, score);
+  }
+
+  public void removeSortedSetValue(String key, String value) {
+    redisTemplate.opsForZSet().remove(key, value);
+  }
+
+  public Set<ZSetOperations.TypedTuple<String>> sortedSetRangeByScoreWithScores(
+      String key, double minScore, double maxScore, long limit) {
+    return redisTemplate.opsForZSet().rangeByScoreWithScores(key, minScore, maxScore, 0, limit);
   }
 }

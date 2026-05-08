@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
+  private static final BigDecimal REGISTER_GIFT_BALANCE = new BigDecimal("5.000000");
+
   private final UserRepository userRepository;
   private final AuthTokenService authTokenService;
   private final EmailVerificationService emailVerificationService;
@@ -39,7 +41,13 @@ public class AuthService {
 
     try {
       UserAccount user =
-          userRepository.create(userId, normalizedEmail, request.password(), registrationIp, Instant.now());
+          userRepository.create(
+              userId,
+              normalizedEmail,
+              request.password(),
+              registrationIp,
+              REGISTER_GIFT_BALANCE,
+              Instant.now());
       return toResponse(user);
     } catch (DuplicateKeyException exception) {
       throw new AppException(

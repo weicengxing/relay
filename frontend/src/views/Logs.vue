@@ -33,8 +33,12 @@ function isStreaming(log) {
   return Number(log.firstTokenMs || 0) < Number(log.useTimeMs || 0);
 }
 
-function detailLines(log) {
-  return log.detailLines?.length ? log.detailLines : ['暂无详情'];
+function displayModel(model) {
+  const text = String(model || '').trim();
+  if (!text) return '-';
+  return text
+    .replace(/[-_](?:20\d{2}-)?\d{1,2}-\d{1,2}$/, '')
+    .replace(/(mini)\d{1,2}-\d{1,2}$/i, '$1');
 }
 
 function tokenClass(token) {
@@ -74,24 +78,20 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
             <tr>
               <th>时间</th>
               <th>令牌</th>
-              <th>分组</th>
               <th>类型</th>
               <th>模型</th>
               <th>用时/首字</th>
               <th>输入</th>
               <th>输出</th>
               <th>花费</th>
-              <th>IP</th>
-              <th>详情</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="log in logs" :key="log.id">
               <td class="td-muted">{{ new Date(log.createdAt).toLocaleString() }}</td>
               <td><span :class="tokenClass(log.token)">{{ log.token }}</span></td>
-              <td><code class="group-code">{{ log.group }}</code></td>
               <td><span class="pill type-pill">{{ log.type }}</span></td>
-              <td><span class="model-pill">{{ log.model || '-' }}</span></td>
+              <td><span class="model-pill">{{ displayModel(log.model) }}</span></td>
               <td>
                 <div class="usage">
                   <span class="pill usage-pill">{{ formatSeconds(log.useTimeMs) }}</span>
@@ -108,10 +108,6 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
                 <span v-if="log.cacheCreationTokens" class="subline">缓存写 {{ formatTokens(log.cacheCreationTokens) }}</span>
               </td>
               <td class="td-cost">{{ formatCost(log.cost) }}</td>
-              <td class="td-muted">{{ log.ip || '-' }}</td>
-              <td class="detail-cell">
-                <div v-for="line in detailLines(log)" :key="line">{{ line }}</div>
-              </td>
             </tr>
           </tbody>
         </table>
@@ -169,7 +165,7 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
 
 .table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 860px;
   border-collapse: collapse;
 }
 
@@ -199,8 +195,7 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
 .td-muted { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 
 .pill,
-.model-pill,
-.group-code {
+.model-pill {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
@@ -218,18 +213,6 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
 .token-pill.muted {
   background: var(--bg);
   color: var(--text-muted);
-}
-
-.group-code {
-  display: inline-block;
-  background: #e0f2fe;
-  color: #075985;
-  font-family: 'SF Mono', monospace;
-  font-weight: 600;
-  max-width: 260px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-all;
 }
 
 .type-pill {
@@ -282,13 +265,6 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
   font-size: 13px;
   color: var(--text);
   white-space: nowrap;
-}
-
-.detail-cell {
-  min-width: 220px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 @media (max-width: 760px) {

@@ -23,7 +23,7 @@ const links = [
     <section class="stats">
       <div class="stat-card stat-hero">
         <div class="stat-label">账户余额</div>
-        <div class="stat-number">{{ auth.balance.toFixed(2) }}</div>
+        <div class="stat-number">{{ auth.balance.toFixed(2) }}$</div>
         <div class="stat-sub">可用余额</div>
       </div>
       <div class="stat-card">

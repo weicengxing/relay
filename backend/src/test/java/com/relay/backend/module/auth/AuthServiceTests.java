@@ -34,7 +34,9 @@ class AuthServiceTests {
     var loggedIn = authService.login(new LoginRequest("123456789@qq.com", "password123"));
 
     assertThat(registered.email()).isEqualTo("123456789@qq.com");
+    assertThat(registered.balance()).isEqualByComparingTo("5.000000");
     assertThat(loggedIn.userId()).isEqualTo(registered.userId());
+    assertThat(loggedIn.balance()).isEqualByComparingTo("5.000000");
     assertThat(loggedIn.token()).isNotBlank();
   }
 
@@ -65,20 +67,25 @@ class AuthServiceTests {
 
   @Test
   void schemaContainsCodexProfileModeTables() {
-    Integer requestModeColumns =
-        jdbcTemplate.queryForObject(
-            """
-            select count(*)
-            from information_schema.columns
-            where table_name = 'openai_services' and column_name = 'request_mode'
-            """,
-            Integer.class);
     Integer codexProfileTables =
         jdbcTemplate.queryForObject(
             "select count(*) from information_schema.tables where table_name = 'openai_codex_profiles'",
             Integer.class);
+    Integer appSettingsTables =
+        jdbcTemplate.queryForObject(
+            "select count(*) from information_schema.tables where table_name = 'app_settings'",
+            Integer.class);
+    Integer defaultSettings =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from app_settings
+            where setting_key in ('openai.request_mode', 'openai.concurrent_limit', 'announcements.badge_default')
+            """,
+            Integer.class);
 
-    assertThat(requestModeColumns).isEqualTo(1);
     assertThat(codexProfileTables).isEqualTo(1);
+    assertThat(appSettingsTables).isEqualTo(1);
+    assertThat(defaultSettings).isEqualTo(3);
   }
 }

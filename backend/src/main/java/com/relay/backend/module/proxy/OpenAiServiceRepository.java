@@ -19,7 +19,7 @@ public class OpenAiServiceRepository {
         """
         insert into openai_services (api_endpoint, token)
         values (?, ?)
-        returning id, api_endpoint, token, request_mode, concurrent_limit, created_at, updated_at
+        returning id, api_endpoint, token, created_at, updated_at
         """,
         this::mapServiceRow,
         apiEndpoint,
@@ -33,8 +33,6 @@ public class OpenAiServiceRepository {
           s.id,
           s.api_endpoint,
           s.token,
-          s.request_mode,
-          s.concurrent_limit,
           s.created_at,
           s.updated_at,
           p.id as profile_id,
@@ -65,8 +63,6 @@ public class OpenAiServiceRepository {
         rs.getLong("id"),
         rs.getString("api_endpoint"),
         rs.getString("token"),
-        rs.getInt("request_mode"),
-        rs.getInt("concurrent_limit"),
         profileId == null ? null : mapCodexProfile(rs, profileId),
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());
@@ -77,8 +73,6 @@ public class OpenAiServiceRepository {
         rs.getLong("id"),
         rs.getString("api_endpoint"),
         rs.getString("token"),
-        rs.getInt("request_mode"),
-        rs.getInt("concurrent_limit"),
         null,
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());

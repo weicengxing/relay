@@ -44,5 +44,10 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('balance');
   }
 
-  return { token, userId, email, balance, isLoggedIn, register, login, logout };
+  function setBalance(nextBalance) {
+    balance.value = parseFloat(nextBalance || 0);
+    localStorage.setItem('balance', String(balance.value));
+  }
+
+  return { token, userId, email, balance, isLoggedIn, register, login, logout, setBalance };
 });

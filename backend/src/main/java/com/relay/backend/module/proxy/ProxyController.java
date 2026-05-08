@@ -6,22 +6,30 @@ import com.relay.backend.common.web.ClientIpResolver;
 import com.relay.backend.module.apikey.ApiKeyService;
 import com.relay.backend.module.log.ProxyRequestLogContext;
 import com.relay.backend.module.log.RequestLogService;
+import com.relay.backend.module.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +37,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -84,6 +93,7 @@ public class ProxyController {
   private final CodexRequestCaptureService codexRequestCaptureService;
   private final UpstreamRouter upstreamRouter;
   private final RequestLogService requestLogService;
+  private final UserRepository userRepository;
   private final ClientIpResolver clientIpResolver;
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient =
@@ -98,6 +108,7 @@ public class ProxyController {
       CodexRequestCaptureService codexRequestCaptureService,
       UpstreamRouter upstreamRouter,
       RequestLogService requestLogService,
+      UserRepository userRepository,
       ClientIpResolver clientIpResolver,
       ObjectMapper objectMapper) {
     this.apiKeyService = apiKeyService;
@@ -105,6 +116,7 @@ public class ProxyController {
     this.codexRequestCaptureService = codexRequestCaptureService;
     this.upstreamRouter = upstreamRouter;
     this.requestLogService = requestLogService;
+    this.userRepository = userRepository;
     this.clientIpResolver = clientIpResolver;
     this.objectMapper = objectMapper;
   }
@@ -112,6 +124,8 @@ public class ProxyController {
   @RequestMapping({"/v1/**", "/backend-api/codex/**"})
   public ResponseEntity<StreamingResponseBody> proxy(HttpServletRequest request) throws IOException {
     byte[] body = StreamUtils.copyToByteArray(request.getInputStream());
+    boolean eventStream = acceptsEventStream(request);
+    ProxyRequestSnapshot requestSnapshot = ProxyRequestSnapshot.from(request);
     String clientIp = clientIpResolver.resolve(request);
     String userAgent = request.getHeader("User-Agent");
     String requestMethod = request.getMethod();
@@ -124,48 +138,108 @@ public class ProxyController {
     try {
       apiKey = apiKeyService.authenticateRawKey(extractBearer(request.getHeader(HttpHeaders.AUTHORIZATION)));
     } catch (AppException exception) {
-      return localErrorResponse(HttpStatus.UNAUTHORIZED, "Invalid API key", acceptsEventStream(request));
+      return localErrorResponse(HttpStatus.UNAUTHORIZED, "Invalid API key", eventStream);
     } catch (Exception exception) {
       log.warn("Unable to authenticate proxy API key", exception);
       return localErrorResponse(
-          HttpStatus.SERVICE_UNAVAILABLE, "Relay authentication service is unavailable", acceptsEventStream(request));
+          HttpStatus.SERVICE_UNAVAILABLE, "Relay authentication service is unavailable", eventStream);
+    }
+    if (hasInsufficientBalance(apiKey.userId())) {
+      return localErrorResponse(HttpStatus.PAYMENT_REQUIRED, "余额不足", eventStream);
     }
 
     UpstreamLease lease;
     try {
       lease = upstreamRouter.acquire(clientType);
     } catch (AppException exception) {
-      return localErrorResponse(exception.status(), exception.getMessage(), acceptsEventStream(request));
+      return localErrorResponse(exception.status(), exception.getMessage(), eventStream);
     } catch (Exception exception) {
       log.warn("Unable to acquire upstream service", exception);
       return localErrorResponse(
-          HttpStatus.SERVICE_UNAVAILABLE, "Relay upstream router is unavailable", acceptsEventStream(request));
+          HttpStatus.SERVICE_UNAVAILABLE, "Relay upstream router is unavailable", eventStream);
     }
 
-    if (clientType == ClientType.CODEX && lease.config().usesCodexProfileRequest()
-        && lease.config().codexProfile() == null) {
-      safeClose(lease);
-      return localErrorResponse(
-          HttpStatus.SERVICE_UNAVAILABLE,
-          "Codex profile request mode requires an openai_codex_profiles row",
-          acceptsEventStream(request));
-    }
-
-    byte[] upstreamBody = normalizeUpstreamBody(body, lease.config(), clientType, acceptsEventStream(request));
-    HttpRequest upstreamRequest;
-    try {
-      upstreamRequest = buildUpstreamRequest(request, upstreamBody, lease.config(), clientType);
-    } catch (AppException exception) {
-      safeClose(lease);
-      return localErrorResponse(exception.status(), exception.getMessage(), acceptsEventStream(request));
-    }
     Instant startedAt = Instant.now();
-    if (clientType == ClientType.CODEX && acceptsEventStream(request)) {
+    if (clientType == ClientType.CODEX && eventStream) {
       return toLazyCodexStreamingResponse(
           apiKey,
           clientType,
           body,
-          upstreamRequest,
+          requestSnapshot,
+          lease,
+          startedAt,
+          clientIp,
+          userAgent,
+          request.getHeader("x-client-request-id"),
+          requestMethod,
+          requestUri,
+          queryString);
+    }
+
+    Set<Long> quotaFailedServiceIds = new HashSet<>();
+    while (true) {
+      if (clientType == ClientType.CODEX && lease.config().usesCodexProfileRequest()
+          && lease.config().codexProfile() == null) {
+        safeClose(lease);
+        return localErrorResponse(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Codex profile request mode requires an openai_codex_profiles row",
+            eventStream);
+      }
+
+      byte[] upstreamBody = normalizeUpstreamBody(body, lease.config(), clientType, eventStream);
+      HttpRequest upstreamRequest;
+      try {
+        upstreamRequest = buildUpstreamRequest(requestSnapshot, upstreamBody, lease.config(), clientType);
+      } catch (AppException exception) {
+        safeClose(lease);
+        return localErrorResponse(exception.status(), exception.getMessage(), eventStream);
+      }
+
+      HttpResponse<InputStream> upstreamResponse;
+      try {
+        upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
+      } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        safeClose(lease);
+        return localErrorResponse(HttpStatus.BAD_GATEWAY, "Upstream request interrupted", eventStream);
+      } catch (Exception exception) {
+        safeClose(lease);
+        return localErrorResponse(HttpStatus.BAD_GATEWAY, "Unable to reach upstream service", eventStream);
+      }
+
+      if (shouldInspectQuotaRetry(clientType, lease.config(), upstreamResponse.statusCode())) {
+        byte[] upstreamResponseBody;
+        try {
+          upstreamResponseBody = readAndCloseResponseBody(upstreamResponse);
+        } catch (IOException exception) {
+          safeClose(lease);
+          return localErrorResponse(HttpStatus.BAD_GATEWAY, "Unable to read upstream error response", eventStream);
+        }
+        if (UpstreamQuotaErrorDetector.isRetryableQuotaError(upstreamResponse.statusCode(), upstreamResponseBody)) {
+          quotaFailedServiceIds.add(lease.config().id());
+          UpstreamLease nextLease = acquireReplacementLease(clientType, quotaFailedServiceIds);
+          if (nextLease != null) {
+            log.warn(
+                "upstream_quota_retry requestId={} failedUpstreamServiceId={} nextUpstreamServiceId={} status={}",
+                request.getHeader("x-client-request-id"),
+                lease.config().id(),
+                nextLease.config().id(),
+                upstreamResponse.statusCode());
+            UpstreamLease failedLease = lease;
+            lease = nextLease;
+            safeClose(failedLease);
+            continue;
+          }
+        }
+        upstreamResponse = bufferedResponse(upstreamResponse, upstreamResponseBody);
+      }
+
+      return toStreamingResponse(
+          apiKey,
+          clientType,
+          body,
+          upstreamResponse,
           lease,
           startedAt,
           lease.config().id(),
@@ -176,38 +250,11 @@ public class ProxyController {
           requestUri,
           queryString);
     }
-
-    HttpResponse<InputStream> upstreamResponse;
-    try {
-      upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
-    } catch (InterruptedException exception) {
-      Thread.currentThread().interrupt();
-      safeClose(lease);
-      return localErrorResponse(HttpStatus.BAD_GATEWAY, "Upstream request interrupted", acceptsEventStream(request));
-    } catch (Exception exception) {
-      safeClose(lease);
-      return localErrorResponse(HttpStatus.BAD_GATEWAY, "Unable to reach upstream service", acceptsEventStream(request));
-    }
-
-    return toStreamingResponse(
-        apiKey,
-        clientType,
-        body,
-        upstreamResponse,
-        lease,
-        startedAt,
-        lease.config().id(),
-        clientIp,
-        userAgent,
-        request.getHeader("x-client-request-id"),
-        requestMethod,
-        requestUri,
-        queryString);
   }
 
   private HttpRequest buildUpstreamRequest(
-      HttpServletRequest request, byte[] body, UpstreamConfig upstream, ClientType clientType) {
-    String targetUrl = joinUrl(upstreamApiEndpoint(upstream), request.getRequestURI(), request.getQueryString());
+      ProxyRequestSnapshot request, byte[] body, UpstreamConfig upstream, ClientType clientType) {
+    String targetUrl = joinUrl(upstreamApiEndpoint(upstream), request.requestUri(), request.queryString());
     HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(targetUrl)).timeout(Duration.ofMinutes(10));
 
     if (clientType == ClientType.CODEX) {
@@ -218,20 +265,25 @@ public class ProxyController {
         builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + upstream.token());
       }
     } else {
-      request
-          .getHeaderNames()
-          .asIterator()
-          .forEachRemaining(
-              name -> {
+      request.headers()
+          .forEach(
+              (name, values) -> {
                 if (shouldForwardHeader(name)) {
-                  request.getHeaders(name).asIterator().forEachRemaining(value -> builder.header(name, value));
+                  values.forEach(value -> builder.header(name, value));
                 }
               });
       builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + upstream.token());
     }
 
-    builder.method(request.getMethod(), requestBodyPublisher(request.getMethod(), body));
+    builder.method(request.method(), requestBodyPublisher(request.method(), body));
     return builder.build();
+  }
+
+  private boolean hasInsufficientBalance(java.util.UUID userId) {
+    return userRepository
+        .findById(userId)
+        .map(user -> (user.balance() == null ? BigDecimal.ZERO : user.balance()).compareTo(BigDecimal.ZERO) < 0)
+        .orElse(true);
   }
 
   private String upstreamApiEndpoint(UpstreamConfig upstream) {
@@ -255,8 +307,8 @@ public class ProxyController {
     }
   }
 
-  private void applyStableCodexHeaders(HttpRequest.Builder builder, HttpServletRequest request, byte[] body) {
-    String accept = request.getHeader(HttpHeaders.ACCEPT);
+  private void applyStableCodexHeaders(HttpRequest.Builder builder, ProxyRequestSnapshot request, byte[] body) {
+    String accept = request.firstHeader(HttpHeaders.ACCEPT);
     if (accept == null || accept.isBlank() || isStreamRequest(body)) {
       builder.setHeader(HttpHeaders.ACCEPT, "text/event-stream");
     } else {
@@ -410,7 +462,7 @@ public class ProxyController {
           try (lease; java.io.InputStream inputStream = upstreamResponse.body()) {
             StreamCopyResult result =
                 clientType == ClientType.CODEX && isEventStream(upstreamResponse)
-                    ? streamCodexSse(inputStream, outputStream, responseBuffer, startedAt)
+                    ? streamCodexSse(inputStream, outputStream, responseBuffer, startedAt, false)
                     : streamBytes(inputStream, outputStream, responseBuffer, startedAt);
             responseBytes = result.responseBytes();
             sawFirstChunk = result.sawFirstChunk();
@@ -431,7 +483,7 @@ public class ProxyController {
                 responseBytes,
                 sawFirstChunk ? firstTokenMs : useTimeMs,
                 useTimeMs,
-                responseBuffer.toString(StandardCharsets.UTF_8).contains("\"type\":\"response.completed\""),
+                containsResponseCompleted(responseBuffer),
                 streamException == null ? null : streamException.getClass().getSimpleName());
             try {
               requestLogService.recordProxyRequestAsync(
@@ -463,10 +515,9 @@ public class ProxyController {
       com.relay.backend.module.apikey.ApiKeyRecord apiKey,
       ClientType clientType,
       byte[] requestBody,
-      HttpRequest upstreamRequest,
+      ProxyRequestSnapshot requestSnapshot,
       UpstreamLease lease,
       Instant startedAt,
-      Long upstreamServiceId,
       String clientIp,
       String userAgent,
       String clientRequestId,
@@ -485,34 +536,102 @@ public class ProxyController {
           long responseBytes = 0L;
           boolean sawFirstChunk = false;
           Integer upstreamStatus = null;
+          String upstreamContentType = null;
           Exception streamException = null;
           HttpResponse<InputStream> upstreamResponse = null;
+          UpstreamLease activeLease = lease;
+          Long activeUpstreamServiceId = activeLease.config().id();
+          Set<Long> quotaFailedServiceIds = new HashSet<>();
           log.info(
               "proxy_stream_start requestId={} clientType={} uri={} upstreamStatus=pending upstreamServiceId={}",
               clientRequestId,
               clientType,
               requestUri,
-              upstreamServiceId);
-          try (lease) {
+              activeUpstreamServiceId);
+          try {
             StreamCopyResult initialHeartbeat = writeCodexHeartbeat(outputStream, responseBuffer, startedAt);
             responseBytes += initialHeartbeat.responseBytes();
             firstTokenMs = initialHeartbeat.firstTokenMs();
             sawFirstChunk = initialHeartbeat.sawFirstChunk();
 
-            upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
-            upstreamStatus = upstreamResponse.statusCode();
-            try (InputStream inputStream = upstreamResponse.body()) {
-              StreamCopyResult result =
-                  isEventStream(upstreamResponse)
-                      ? streamCodexSse(inputStream, outputStream, responseBuffer, startedAt)
-                      : streamCodexUpstreamError(
-                          inputStream, outputStream, responseBuffer, startedAt, upstreamStatus);
-              responseBytes += result.responseBytes();
-              if (!sawFirstChunk && result.sawFirstChunk()) {
-                firstTokenMs = result.firstTokenMs();
+            while (true) {
+              activeUpstreamServiceId = activeLease.config().id();
+              if (clientType == ClientType.CODEX && activeLease.config().usesCodexProfileRequest()
+                  && activeLease.config().codexProfile() == null) {
+                throw new AppException(
+                    ErrorCode.VALIDATION_FAILED,
+                    "Codex profile request mode requires an openai_codex_profiles row",
+                    HttpStatus.SERVICE_UNAVAILABLE);
               }
-              sawFirstChunk = sawFirstChunk || result.sawFirstChunk();
+              byte[] upstreamBody = normalizeUpstreamBody(requestBody, activeLease.config(), clientType, true);
+              HttpRequest upstreamRequest =
+                  buildUpstreamRequest(requestSnapshot, upstreamBody, activeLease.config(), clientType);
+              upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
+              upstreamStatus = upstreamResponse.statusCode();
+              upstreamContentType = upstreamResponse.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse(null);
+
+              if (shouldInspectQuotaRetry(clientType, activeLease.config(), upstreamStatus)) {
+                byte[] upstreamResponseBody = readAndCloseResponseBody(upstreamResponse);
+                if (UpstreamQuotaErrorDetector.isRetryableQuotaError(upstreamStatus, upstreamResponseBody)) {
+                  quotaFailedServiceIds.add(activeLease.config().id());
+                  UpstreamLease nextLease = acquireReplacementLease(clientType, quotaFailedServiceIds);
+                  if (nextLease != null) {
+                    log.warn(
+                        "upstream_quota_retry requestId={} failedUpstreamServiceId={} nextUpstreamServiceId={} status={}",
+                        clientRequestId,
+                        activeLease.config().id(),
+                        nextLease.config().id(),
+                        upstreamStatus);
+                    UpstreamLease failedLease = activeLease;
+                    activeLease = nextLease;
+                    safeClose(failedLease);
+                    upstreamResponse = null;
+                    upstreamStatus = null;
+                    continue;
+                  }
+                }
+
+                StreamCopyResult result =
+                    streamCodexUpstreamError(
+                        new ByteArrayInputStream(upstreamResponseBody),
+                        outputStream,
+                        responseBuffer,
+                        startedAt,
+                        upstreamStatus);
+                responseBytes += result.responseBytes();
+                if (!sawFirstChunk && result.sawFirstChunk()) {
+                  firstTokenMs = result.firstTokenMs();
+                }
+                sawFirstChunk = sawFirstChunk || result.sawFirstChunk();
+                safeClose(activeLease);
+                activeLease = null;
+                break;
+              }
+
+              try (InputStream inputStream = upstreamResponse.body()) {
+                StreamCopyResult result =
+                    isSuccessfulStatus(upstreamStatus)
+                        ? streamCodexSse(
+                            inputStream,
+                            outputStream,
+                            responseBuffer,
+                            startedAt,
+                            activeLease.config().usesCodexProfileRequest())
+                        : streamCodexUpstreamError(
+                            inputStream, outputStream, responseBuffer, startedAt, upstreamStatus);
+                responseBytes += result.responseBytes();
+                if (!sawFirstChunk && result.sawFirstChunk()) {
+                  firstTokenMs = result.firstTokenMs();
+                }
+                sawFirstChunk = sawFirstChunk || result.sawFirstChunk();
+              }
+              safeClose(activeLease);
+              activeLease = null;
+              break;
             }
+          } catch (AppException exception) {
+            streamException = exception;
+            writeCodexSseError(outputStream, responseBuffer, exception.getMessage());
           } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             streamException = exception;
@@ -523,10 +642,13 @@ public class ProxyController {
               writeCodexSseError(outputStream, responseBuffer, "Unable to reach upstream service");
             }
           } finally {
+            if (activeLease != null) {
+              safeClose(activeLease);
+            }
             long useTimeMs = Duration.between(startedAt, Instant.now()).toMillis();
             int statusCode = upstreamStatus == null ? HttpStatus.BAD_GATEWAY.value() : upstreamStatus;
             log.info(
-                "proxy_stream_end requestId={} clientType={} uri={} status={} bytes={} firstTokenMs={} useTimeMs={} completed={} error={}",
+                "proxy_stream_end requestId={} clientType={} uri={} status={} bytes={} firstTokenMs={} useTimeMs={} completed={} upstreamContentType={} error={}",
                 clientRequestId,
                 clientType,
                 requestUri,
@@ -534,7 +656,8 @@ public class ProxyController {
                 responseBytes,
                 sawFirstChunk ? firstTokenMs : useTimeMs,
                 useTimeMs,
-                responseBuffer.toString(StandardCharsets.UTF_8).contains("\"type\":\"response.completed\""),
+                containsResponseCompleted(responseBuffer),
+                upstreamContentType,
                 streamException == null ? null : streamException.getClass().getSimpleName());
             try {
               requestLogService.recordProxyRequestAsync(
@@ -548,8 +671,8 @@ public class ProxyController {
                       userAgent,
                       requestBody,
                       responseBuffer.toByteArray(),
-                      upstreamServiceId,
-                      upstreamResponse == null ? java.util.Map.of() : upstreamResponse.headers().map(),
+                      activeUpstreamServiceId,
+                      upstreamResponse == null ? Map.of() : upstreamResponse.headers().map(),
                       statusCode,
                       useTimeMs,
                       sawFirstChunk ? firstTokenMs : useTimeMs));
@@ -560,6 +683,38 @@ public class ProxyController {
         };
 
     return new ResponseEntity<>(stream, headers, HttpStatus.OK);
+  }
+
+  private boolean shouldInspectQuotaRetry(ClientType clientType, UpstreamConfig upstream, int statusCode) {
+    return clientType == ClientType.CODEX
+        && upstream.usesCodexProfileRequest()
+        && UpstreamQuotaErrorDetector.isRetryableStatus(statusCode);
+  }
+
+  private boolean isSuccessfulStatus(int statusCode) {
+    return statusCode >= 200 && statusCode < 300;
+  }
+
+  private UpstreamLease acquireReplacementLease(ClientType clientType, Set<Long> excludedServiceIds) {
+    try {
+      return upstreamRouter.acquire(clientType, excludedServiceIds);
+    } catch (AppException exception) {
+      log.info("No replacement upstream service is available after quota error: {}", exception.getMessage());
+      return null;
+    } catch (Exception exception) {
+      log.warn("Unable to acquire replacement upstream service after quota error", exception);
+      return null;
+    }
+  }
+
+  private byte[] readAndCloseResponseBody(HttpResponse<InputStream> response) throws IOException {
+    try (InputStream inputStream = response.body()) {
+      return StreamUtils.copyToByteArray(inputStream);
+    }
+  }
+
+  private HttpResponse<InputStream> bufferedResponse(HttpResponse<InputStream> response, byte[] body) {
+    return new BufferedHttpResponse(response, body);
   }
 
   private String extractBearer(String authorization) {
@@ -654,7 +809,8 @@ public class ProxyController {
       InputStream inputStream,
       OutputStream outputStream,
       ByteArrayOutputStream responseBuffer,
-      Instant startedAt)
+      Instant startedAt,
+      boolean preserveOutbound)
       throws IOException {
     long responseBytes = 0L;
     long firstTokenMs = 0L;
@@ -693,22 +849,26 @@ public class ProxyController {
           throw new IOException("Interrupted while waiting for upstream SSE", exception);
         }
 
-        String line;
+        String outboundLine;
+        String captureLine;
         if (result == null) {
-          line = CODEX_SSE_HEARTBEAT;
+          outboundLine = CODEX_SSE_HEARTBEAT;
+          captureLine = CODEX_SSE_HEARTBEAT;
         } else if (result.error() != null) {
           throw new IOException("Unable to read upstream SSE", result.error());
         } else if (result.endOfStream()) {
           break;
         } else {
-          line = sanitizeCodexSseLine(result.line()) + "\n";
+          captureLine = sanitizeCodexSseLine(result.line()) + "\n";
+          outboundLine = preserveOutbound ? result.line() + "\n" : captureLine;
         }
 
-        byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = outboundLine.getBytes(StandardCharsets.UTF_8);
         outputStream.write(bytes);
         outputStream.flush();
         responseBytes += bytes.length;
-        captureForLog(responseBuffer, bytes, bytes.length);
+        byte[] captureBytes = captureLine.getBytes(StandardCharsets.UTF_8);
+        captureForLog(responseBuffer, captureBytes, captureBytes.length);
         if (!sawFirstChunk) {
           sawFirstChunk = true;
           firstTokenMs = Duration.between(startedAt, Instant.now()).toMillis();
@@ -809,6 +969,10 @@ public class ProxyController {
         .orElse(false);
   }
 
+  private boolean containsResponseCompleted(ByteArrayOutputStream responseBuffer) {
+    return responseBuffer.toString(StandardCharsets.UTF_8).contains("\"response.completed\"");
+  }
+
   private boolean isClientDisconnect(Exception exception) {
     String name = exception.getClass().getSimpleName();
     String message = exception.getMessage();
@@ -822,6 +986,74 @@ public class ProxyController {
       lease.close();
     } catch (Exception exception) {
       log.warn("Unable to release upstream lease", exception);
+    }
+  }
+
+  private record ProxyRequestSnapshot(
+      String method, String requestUri, String queryString, Map<String, List<String>> headers) {
+
+    static ProxyRequestSnapshot from(HttpServletRequest request) {
+      Map<String, List<String>> headers = new LinkedHashMap<>();
+      var headerNames = request.getHeaderNames();
+      if (headerNames != null) {
+        Collections.list(headerNames)
+            .forEach(name -> headers.put(name, Collections.list(request.getHeaders(name))));
+      }
+      return new ProxyRequestSnapshot(
+          request.getMethod(), request.getRequestURI(), request.getQueryString(), headers);
+    }
+
+    String firstHeader(String headerName) {
+      for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+        if (entry.getKey().equalsIgnoreCase(headerName) && !entry.getValue().isEmpty()) {
+          return entry.getValue().get(0);
+        }
+      }
+      return null;
+    }
+  }
+
+  private record BufferedHttpResponse(HttpResponse<InputStream> delegate, byte[] bufferedBody)
+      implements HttpResponse<InputStream> {
+
+    @Override
+    public int statusCode() {
+      return delegate.statusCode();
+    }
+
+    @Override
+    public HttpRequest request() {
+      return delegate.request();
+    }
+
+    @Override
+    public Optional<HttpResponse<InputStream>> previousResponse() {
+      return delegate.previousResponse();
+    }
+
+    @Override
+    public java.net.http.HttpHeaders headers() {
+      return delegate.headers();
+    }
+
+    @Override
+    public InputStream body() {
+      return new ByteArrayInputStream(bufferedBody);
+    }
+
+    @Override
+    public Optional<SSLSession> sslSession() {
+      return delegate.sslSession();
+    }
+
+    @Override
+    public URI uri() {
+      return delegate.uri();
+    }
+
+    @Override
+    public HttpClient.Version version() {
+      return delegate.version();
     }
   }
 

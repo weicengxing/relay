@@ -1,10 +1,10 @@
 $bodyPath = 'D:\relay\backend\captures\codex\latest-body.json'
 curl.exe -N 'http://localhost:8080/v1/responses' `
   -H 'x-codex-beta-features: terminal_resize_reflow' `
-  -H 'x-codex-turn-metadata: {"session_id":"019e072c-b100-7462-a432-634d6a26682e","thread_source":"user","turn_id":"019e072d-97d2-7d71-9af2-5cb65b0182ad","sandbox":"windows_elevated","turn_started_at_unix_ms":1778236889101}' `
-  -H 'x-codex-window-id: 019e072c-b100-7462-a432-634d6a26682e:0' `
-  -H 'x-client-request-id: 019e072c-b100-7462-a432-634d6a26682e' `
-  -H 'session_id: 019e072c-b100-7462-a432-634d6a26682e' `
+  -H 'x-codex-turn-metadata: {"session_id":"019e07d1-d5f6-7ba2-8c76-da75c70ccae8","thread_source":"user","turn_id":"019e07d2-53e8-7fb2-a316-3ee65f022ecf","sandbox":"windows_elevated","turn_started_at_unix_ms":1778247685152}' `
+  -H 'x-codex-window-id: 019e07d1-d5f6-7ba2-8c76-da75c70ccae8:0' `
+  -H 'x-client-request-id: 019e07d1-d5f6-7ba2-8c76-da75c70ccae8' `
+  -H 'session_id: 019e07d1-d5f6-7ba2-8c76-da75c70ccae8' `
   -H 'accept: text/event-stream' `
   -H 'authorization: Bearer relay_BgV7MZudDLOUS5EiZZpi_f9hMZ5ZsxecqtZjLPXstoI' `
   -H 'content-type: application/json' `

@@ -6,8 +6,6 @@ public record OpenAiServiceConfig(
     Long id,
     String apiEndpoint,
     String token,
-    int requestMode,
-    int concurrentLimit,
     CodexProfileConfig codexProfile,
     Instant createdAt,
     Instant updatedAt) {}

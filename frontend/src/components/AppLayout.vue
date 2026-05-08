@@ -1,16 +1,86 @@
 <script setup>
+import { computed, onMounted, ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRouter, useRoute } from 'vue-router';
+import * as api from '../api';
 import OpenAIIcon from './OpenAIIcon.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const announcements = ref([]);
+const announcementBadge = ref(0);
+const announcementUnread = ref(0);
+const announcementOpen = ref(false);
+const announcementLoading = ref(false);
+const announcementError = ref('');
+
+const displayBadge = computed(() => (announcementBadge.value > 99 ? '99+' : String(announcementBadge.value)));
 
 function handleLogout() {
   auth.logout();
   router.push('/login');
 }
+
+function applyAnnouncementInbox(data) {
+  announcements.value = data?.announcements || [];
+  announcementUnread.value = Number(data?.unreadCount || 0);
+  announcementBadge.value = Number(data?.badgeCount || 0);
+}
+
+async function loadAnnouncements() {
+  announcementLoading.value = true;
+  announcementError.value = '';
+  try {
+    applyAnnouncementInbox(await api.getAnnouncements());
+  } catch (error) {
+    announcementError.value = error.message || '公告加载失败';
+  } finally {
+    announcementLoading.value = false;
+  }
+}
+
+async function handleAnnouncementClick() {
+  announcementOpen.value = true;
+  if (!announcements.value.length && !announcementLoading.value) {
+    await loadAnnouncements();
+  }
+  if (announcementBadge.value <= 0 && announcementUnread.value <= 0) {
+    return;
+  }
+
+  const previousBadge = announcementBadge.value;
+  const previousUnread = announcementUnread.value;
+  announcementBadge.value = 0;
+  announcementUnread.value = 0;
+  try {
+    applyAnnouncementInbox(await api.markAnnouncementsRead());
+  } catch (error) {
+    announcementBadge.value = previousBadge;
+    announcementUnread.value = previousUnread;
+    announcementError.value = error.message || '公告状态更新失败';
+  }
+}
+
+function closeAnnouncement() {
+  announcementOpen.value = false;
+}
+
+function formatAnnouncementTime(value) {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  } catch (error) {
+    return '';
+  }
+}
+
+onMounted(loadAnnouncements);
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/></svg>` },
@@ -51,7 +121,7 @@ const navItems = [
           <div class="avatar">{{ auth.email?.charAt(0)?.toUpperCase() }}</div>
           <div class="user-meta">
             <span class="user-name">{{ auth.email?.split('@')[0] }}</span>
-            <span class="user-bal">{{ auth.balance.toFixed(2) }}</span>
+            <span class="user-bal">{{ auth.balance.toFixed(2) }}$</span>
           </div>
         </div>
         <button class="logout-btn" @click="handleLogout" title="退出登录">
@@ -61,12 +131,53 @@ const navItems = [
     </aside>
 
     <main class="main">
+      <div class="top-actions">
+        <button class="announcement-btn" @click="handleAnnouncementClick" title="公告" aria-label="公告">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span v-if="announcementBadge > 0" class="announcement-badge">{{ displayBadge }}</span>
+        </button>
+      </div>
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
     </main>
+
+    <transition name="fade">
+      <div v-if="announcementOpen" class="announcement-backdrop" @click.self="closeAnnouncement">
+        <section class="announcement-modal" role="dialog" aria-modal="true" aria-label="公告">
+          <header class="announcement-header">
+            <div>
+              <h2>公告</h2>
+              <span v-if="announcementUnread > 0" class="announcement-count">{{ announcementUnread }} 条未读</span>
+            </div>
+            <button class="modal-close" @click="closeAnnouncement" title="关闭" aria-label="关闭">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+              </svg>
+            </button>
+          </header>
+
+          <div class="announcement-body">
+            <div v-if="announcementLoading" class="announcement-state">加载中...</div>
+            <div v-else-if="announcementError" class="announcement-state error">{{ announcementError }}</div>
+            <div v-else-if="!announcements.length" class="announcement-state">暂无公告</div>
+            <article v-else v-for="item in announcements" :key="item.id" class="announcement-item">
+              <div class="announcement-item-head">
+                <h3>{{ item.title }}</h3>
+                <time>{{ formatAnnouncementTime(item.publishedAt) }}</time>
+              </div>
+              <p>{{ item.content }}</p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -253,9 +364,189 @@ const navItems = [
 
 .main {
   flex: 1;
-  padding: 32px 40px;
+  padding: 24px 40px 32px;
   overflow-y: auto;
   min-width: 0;
   background: var(--bg);
+}
+
+.top-actions {
+  min-height: 40px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.announcement-btn {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--duration) var(--ease);
+}
+
+.announcement-btn:hover {
+  color: var(--primary);
+  border-color: rgba(99, 102, 241, 0.18);
+  box-shadow: var(--shadow-sm);
+}
+
+.announcement-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.announcement-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.34);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 72px 40px 24px;
+  z-index: 50;
+}
+
+.announcement-modal {
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 96px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.announcement-header {
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.announcement-header h2 {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.announcement-count {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal-close {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.modal-close:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.announcement-body {
+  padding: 12px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.announcement-state {
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.announcement-state.error {
+  color: var(--danger);
+}
+
+.announcement-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px 14px;
+  background: #fff;
+}
+
+.announcement-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.announcement-item h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.announcement-item time {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.announcement-item p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 760px) {
+  .main {
+    padding: 20px 18px 28px;
+  }
+
+  .announcement-backdrop {
+    justify-content: center;
+    padding: 64px 16px 20px;
+  }
 }
 </style>

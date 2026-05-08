@@ -3,6 +3,7 @@ package com.relay.backend.module.user;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,16 +20,22 @@ public class UserRepository {
   }
 
   public UserAccount create(
-      UUID id, String email, String passwordHash, String registrationIp, Instant createdAt) {
+      UUID id,
+      String email,
+      String passwordHash,
+      String registrationIp,
+      BigDecimal initialBalance,
+      Instant createdAt) {
     jdbcTemplate.update(
         """
-        insert into users (id, email, password_hash, registration_ip, created_at)
-        values (?, ?, ?, ?, ?)
+        insert into users (id, email, password_hash, registration_ip, balance, created_at)
+        values (?, ?, ?, ?, ?, ?)
         """,
         id,
         email,
         passwordHash,
         registrationIp,
+        initialBalance,
         Timestamp.from(createdAt));
 
     return findByEmail(email).orElseThrow();
@@ -46,6 +53,37 @@ public class UserRepository {
             email)
         .stream()
         .findFirst();
+  }
+
+  public Optional<UserAccount> findById(UUID id) {
+    return jdbcTemplate
+        .query(
+            """
+            select id, email, password_hash, registration_ip, balance, status, created_at
+            from users
+            where id = ?
+            """,
+            this::mapRow,
+            id)
+        .stream()
+        .findFirst();
+  }
+
+  public BigDecimal addBalance(UUID userId, BigDecimal amount) {
+    return jdbcTemplate.queryForObject(
+        """
+        update users
+        set balance = balance + ?
+        where id = ?
+        returning balance
+        """,
+        BigDecimal.class,
+        amount,
+        userId);
+  }
+
+  public BigDecimal deductBalance(UUID userId, BigDecimal amount) {
+    return addBalance(userId, amount.negate());
   }
 
   private UserAccount mapRow(ResultSet rs, int rowNum) throws SQLException {

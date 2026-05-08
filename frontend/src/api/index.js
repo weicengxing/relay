@@ -76,10 +76,27 @@ export function getModels() {
   return request('/models');
 }
 
+export function getAnnouncements() {
+  return request('/announcements');
+}
+
+export function markAnnouncementsRead() {
+  return request('/announcements/read', {
+    method: 'POST',
+  });
+}
+
 export async function getBalance() {
   return { balance: 0 };
 }
 
 export async function createRecharge(amount, remark) {
   return { id: Date.now(), amount, status: 'pending', remark, createdAt: new Date().toISOString() };
+}
+
+export function redeemCode(code) {
+  return request('/redeem-codes/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
 }

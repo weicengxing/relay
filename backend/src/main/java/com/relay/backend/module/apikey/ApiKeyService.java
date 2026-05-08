@@ -32,8 +32,12 @@ public class ApiKeyService {
   }
 
   public ApiKeyResponse create(UUID userId, CreateApiKeyRequest request) {
+    String name = request.name().trim();
+    if (apiKeyRepository.existsActiveNameByUserId(userId, name)) {
+      throw new AppException(ErrorCode.CONFLICT, "API key name already exists", HttpStatus.CONFLICT);
+    }
     String key = issueKey();
-    ApiKeyRecord record = apiKeyRepository.create(userId, sha256(key), key, request.name().trim());
+    ApiKeyRecord record = apiKeyRepository.create(userId, sha256(key), key, name);
     return toResponse(record, key);
   }
 

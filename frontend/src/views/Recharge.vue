@@ -6,10 +6,13 @@ import { useAuthStore } from '../stores/auth';
 const auth = useAuthStore();
 const amount = ref('');
 const remark = ref('');
+const redeemCode = ref('');
 const loading = ref(false);
+const redeeming = ref(false);
 const success = ref(false);
 const error = ref('');
-const presets = [10, 50, 100, 500];
+const redeemSuccess = ref('');
+const presets = [10, 50, 100];
 
 async function handleSubmit() {
   error.value = '';
@@ -25,6 +28,26 @@ async function handleSubmit() {
     error.value = e.message || '充值失败';
   } finally { loading.value = false; }
 }
+
+async function handleRedeem() {
+  error.value = '';
+  redeemSuccess.value = '';
+  if (!redeemCode.value.trim()) {
+    error.value = '请输入兑换码';
+    return;
+  }
+  redeeming.value = true;
+  try {
+    const data = await api.redeemCode(redeemCode.value);
+    auth.setBalance(data.balance);
+    redeemSuccess.value = `兑换成功，已到账 ${Number(data.amount || 0).toFixed(2)}`;
+    redeemCode.value = '';
+  } catch (e) {
+    error.value = e.message || '兑换失败';
+  } finally {
+    redeeming.value = false;
+  }
+}
 </script>
 
 <template>
@@ -39,10 +62,24 @@ async function handleSubmit() {
         <div class="balance-strip">
           <div>
             <div class="bal-label">当前余额</div>
-            <div class="bal-value">{{ auth.balance.toFixed(2) }}</div>
+            <div class="bal-value">{{ auth.balance.toFixed(2) }}$</div>
           </div>
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="1" y="4" width="22" height="16" rx="3"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
         </div>
+
+        <form class="redeem-form" @submit.prevent="handleRedeem">
+          <label class="field">
+            <span class="field-label">兑换码</span>
+            <div class="redeem-row">
+              <input v-model="redeemCode" class="text-input" placeholder="输入兑换码" />
+              <button type="submit" class="btn-submit redeem-btn" :disabled="redeeming">
+                <span v-if="redeeming" class="spin"></span>
+                {{ redeeming ? '兑换中...' : '兑换' }}
+              </button>
+            </div>
+          </label>
+          <div v-if="redeemSuccess" class="success-note">{{ redeemSuccess }}</div>
+        </form>
 
         <transition name="fade" mode="out-in">
           <div v-if="success" class="success-box">
@@ -91,8 +128,12 @@ async function handleSubmit() {
         <ul>
           <li>充值申请提交后需要管理员审核</li>
           <li>审核通过后余额会自动更新</li>
-          <li>如有问题请联系管理员</li>
+          <li>如有问题请联系管理员QQ 2997657261 微信号 DIQIUZUIQIANGNANREN</li>
+          <li>管理员也只是一个清澈大学生，请多担待，但绝对秉持赤城之心为大家服务</li>
+          <li>任何中转站一般很难维持稳定，建议不要大额充值~~</li>
           <li>支持自定义金额充值</li>
+          <li>1元人民币可兑换10$</li>
+          <li>如果服务您不满意，可以联系管理员申请退款 😊🌸</li>
         </ul>
       </div>
     </div>
@@ -132,6 +173,27 @@ async function handleSubmit() {
   padding: 28px 28px;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
   color: #fff;
+}
+
+.redeem-form {
+  padding: 22px 28px 0;
+}
+
+.redeem-row {
+  display: grid;
+  grid-template-columns: 1fr 112px;
+  gap: 10px;
+}
+
+.redeem-btn {
+  padding-inline: 18px;
+}
+
+.success-note {
+  margin-top: 10px;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .bal-label {

@@ -1,7 +1,9 @@
 package com.relay.backend.module.apikey;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.relay.backend.common.error.AppException;
 import com.relay.backend.module.apikey.dto.CreateApiKeyRequest;
 import com.relay.backend.module.auth.AuthService;
 import com.relay.backend.module.auth.EmailVerificationService;
@@ -38,5 +40,19 @@ class ApiKeyServiceTests {
     assertThat(listed).hasSize(1);
     assertThat(listed.getFirst().name()).isEqualTo("Local dev");
     assertThat(apiKeyService.list(user.userId())).isEmpty();
+  }
+
+  @Test
+  void rejectsDuplicateActiveNameForSameUser() {
+    emailVerificationService.putRegisterCodeForTest("234567890@qq.com", "123456");
+    var user =
+        authService.register(
+            new RegisterRequest("234567890@qq.com", "password123", "123456"), "10.0.0.2");
+
+    apiKeyService.create(user.userId(), new CreateApiKeyRequest("Local dev"));
+
+    assertThatThrownBy(() -> apiKeyService.create(user.userId(), new CreateApiKeyRequest(" local DEV ")))
+        .isInstanceOf(AppException.class)
+        .hasMessage("API key name already exists");
   }
 }

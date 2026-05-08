@@ -100,6 +100,20 @@ public class ApiKeyRepository {
     return updated > 0;
   }
 
+  public boolean existsActiveNameByUserId(UUID userId, String name) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from api_keys
+            where user_id = ? and status <> 'revoked' and lower(name) = lower(?)
+            """,
+            Integer.class,
+            userId,
+            name);
+    return count != null && count > 0;
+  }
+
   public boolean existsActiveHash(String keyHash) {
     Integer count =
         jdbcTemplate.queryForObject(
