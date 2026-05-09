@@ -1,10 +1,7 @@
 package com.relay.backend.module.webchat;
 
 import com.relay.backend.common.api.ApiResponse;
-import com.relay.backend.common.error.AppException;
-import com.relay.backend.common.error.ErrorCode;
 import com.relay.backend.module.auth.AuthTokenService;
-import com.relay.backend.module.user.UserRepository;
 import com.relay.backend.module.webchat.dto.WebChatMessageRequest;
 import com.relay.backend.module.webchat.dto.WebChatMessageResponse;
 import com.relay.backend.module.webchat.dto.WebChatSessionResponse;
@@ -14,7 +11,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.springframework.http.MediaType;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,17 +27,14 @@ public class WebChatController {
   private final WebChatService webChatService;
   private final AuthTokenService authTokenService;
   private final ObjectMapper objectMapper;
-  private final UserRepository userRepository;
 
   public WebChatController(
       WebChatService webChatService,
       AuthTokenService authTokenService,
-      ObjectMapper objectMapper,
-      UserRepository userRepository) {
+      ObjectMapper objectMapper) {
     this.webChatService = webChatService;
     this.authTokenService = authTokenService;
     this.objectMapper = objectMapper;
-    this.userRepository = userRepository;
   }
 
   @GetMapping("/session")
@@ -102,14 +95,7 @@ public class WebChatController {
   private UUID resolveUserId(String authorization) {
     String prefix = "Bearer ";
     if (authorization == null || !authorization.startsWith(prefix)) {
-      return userRepository
-          .findFirstId()
-          .orElseThrow(
-              () ->
-                  new AppException(
-                      ErrorCode.UNAUTHORIZED,
-                      "No user exists for temporary web chat test access",
-                      HttpStatus.UNAUTHORIZED));
+      return authTokenService.verifyAndGetUserId(null);
     }
     return authTokenService.verifyAndGetUserId(authorization.substring(prefix.length()));
   }

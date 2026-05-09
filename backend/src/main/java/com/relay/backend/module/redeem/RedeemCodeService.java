@@ -3,6 +3,7 @@ package com.relay.backend.module.redeem;
 import com.relay.backend.common.error.AppException;
 import com.relay.backend.common.error.ErrorCode;
 import com.relay.backend.module.redeem.dto.RedeemCodeResponse;
+import com.relay.backend.module.user.BalanceUpdatePublisher;
 import com.relay.backend.module.user.UserRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -19,24 +20,28 @@ public class RedeemCodeService {
   private final RedeemCodeRepository redeemCodeRepository;
   private final RedeemCodeRedisIndex redisIndex;
   private final UserRepository userRepository;
+  private final BalanceUpdatePublisher balanceUpdatePublisher;
   private final Clock clock;
 
   @Autowired
   public RedeemCodeService(
       RedeemCodeRepository redeemCodeRepository,
       RedeemCodeRedisIndex redisIndex,
-      UserRepository userRepository) {
-    this(redeemCodeRepository, redisIndex, userRepository, Clock.systemUTC());
+      UserRepository userRepository,
+      BalanceUpdatePublisher balanceUpdatePublisher) {
+    this(redeemCodeRepository, redisIndex, userRepository, balanceUpdatePublisher, Clock.systemUTC());
   }
 
   RedeemCodeService(
       RedeemCodeRepository redeemCodeRepository,
       RedeemCodeRedisIndex redisIndex,
       UserRepository userRepository,
+      BalanceUpdatePublisher balanceUpdatePublisher,
       Clock clock) {
     this.redeemCodeRepository = redeemCodeRepository;
     this.redisIndex = redisIndex;
     this.userRepository = userRepository;
+    this.balanceUpdatePublisher = balanceUpdatePublisher;
     this.clock = clock;
   }
 
@@ -61,6 +66,7 @@ public class RedeemCodeService {
 
     RedeemCodeRecord redeemed = redeemCodeRepository.markRedeemed(codeRecord.id(), userId, now);
     BigDecimal balance = userRepository.addBalance(userId, redeemed.amount());
+    balanceUpdatePublisher.publish(userId, balance);
     redisIndex.add(redeemed);
     return new RedeemCodeResponse(redeemed.amount(), balance, redeemed.expiresAt());
   }
@@ -75,7 +81,8 @@ public class RedeemCodeService {
       return false;
     }
 
-    userRepository.addBalance(codeRecord.holderUserId(), codeRecord.amount().negate());
+    BigDecimal balance = userRepository.addBalance(codeRecord.holderUserId(), codeRecord.amount().negate());
+    balanceUpdatePublisher.publish(codeRecord.holderUserId(), balance);
     redeemCodeRepository.markExpiredDeducted(codeRecord.id(), now);
     return true;
   }

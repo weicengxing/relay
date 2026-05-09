@@ -194,7 +194,6 @@ public class WebChatService {
     payload.put("fork_from_shared_post", false);
     payload.put("parent_message_id", parentMessageId);
     payload.put("model", model);
-    payload.put("client_prepare_state", conversationId == null ? "sent" : "none");
     payload.put("timezone_offset_min", -480);
     payload.put("timezone", "Asia/Shanghai");
     payload.put("conversation_mode", Map.of("kind", "primary_assistant"));
@@ -1111,8 +1110,18 @@ public class WebChatService {
         && value.get(0).isTextual()) {
       return mergeFullText(answer, value.get(0).asText());
     }
+    if ("/message/content".equals(path) && Set.of("replace", "add").contains(op) && value.isObject()) {
+      JsonNode parts = value.path("parts");
+      if (parts.isArray() && parts.size() > 0 && parts.get(0).isTextual()) {
+        return mergeFullText(answer, parts.get(0).asText());
+      }
+    }
     if ("/message".equals(path) && Set.of("replace", "add").contains(op) && value.isObject()) {
       String text = extractAssistantMessageText(objectMapper.valueToTree(Map.of("message", value)));
+      return text == null ? answer : mergeFullText(answer, text);
+    }
+    if ("".equals(path) && Set.of("replace", "add").contains(op) && value.isObject()) {
+      String text = extractAssistantMessageText(value);
       return text == null ? answer : mergeFullText(answer, text);
     }
     return answer;

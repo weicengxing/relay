@@ -4,6 +4,7 @@ import com.relay.backend.module.apikey.ApiKeyRecord;
 import com.relay.backend.module.log.dto.RequestLogResponse;
 import com.relay.backend.module.proxy.ModelCatalogItem;
 import com.relay.backend.module.proxy.ModelCatalogRepository;
+import com.relay.backend.module.user.BalanceUpdatePublisher;
 import com.relay.backend.module.user.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,6 +47,7 @@ public class RequestLogService {
   private final RequestLogRepository requestLogRepository;
   private final ModelCatalogRepository modelCatalogRepository;
   private final UserRepository userRepository;
+  private final BalanceUpdatePublisher balanceUpdatePublisher;
   private final BillingSettingsRepository billingSettingsRepository;
   private final ObjectMapper objectMapper;
 
@@ -53,11 +55,13 @@ public class RequestLogService {
       RequestLogRepository requestLogRepository,
       ModelCatalogRepository modelCatalogRepository,
       UserRepository userRepository,
+      BalanceUpdatePublisher balanceUpdatePublisher,
       BillingSettingsRepository billingSettingsRepository,
       ObjectMapper objectMapper) {
     this.requestLogRepository = requestLogRepository;
     this.modelCatalogRepository = modelCatalogRepository;
     this.userRepository = userRepository;
+    this.balanceUpdatePublisher = balanceUpdatePublisher;
     this.billingSettingsRepository = billingSettingsRepository;
     this.objectMapper = objectMapper;
   }
@@ -92,7 +96,8 @@ public class RequestLogService {
               UpstreamResponseDetailCodec.encode(context.responseBody()),
               Instant.now()));
       if (cost.signum() > 0) {
-        userRepository.deductBalance(context.apiKey().userId(), cost);
+        BigDecimal balance = userRepository.deductBalance(context.apiKey().userId(), cost);
+        balanceUpdatePublisher.publish(context.apiKey().userId(), balance);
       }
     } catch (Exception exception) {
       log.warn("Unable to write request log", exception);

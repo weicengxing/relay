@@ -6,8 +6,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,7 +66,13 @@ public class NovelRepository {
     return findById(id.longValue(), userId).orElseThrow();
   }
 
-  public List<NovelRecord> findAll(UUID viewerUserId) {
+  public List<NovelRecord> findPage(UUID viewerUserId, String query, int limit, int offset) {
+    String normalizedQuery = normalizeQuery(query);
+    List<Object> args = new ArrayList<>();
+    args.add(viewerUserId);
+    addSearchArgs(args, normalizedQuery);
+    args.add(limit);
+    args.add(offset);
     return jdbcTemplate.query(
         """
         select n.id, n.user_id, n.title, n.author, n.excerpt, n.content_object_key,
@@ -72,10 +80,48 @@ public class NovelRepository {
                r.score as my_rating, n.created_at, n.updated_at
         from novels n
         left join novel_ratings r on r.novel_id = n.id and r.user_id = ?
+        %s
         order by n.created_at desc, n.id desc
-        """,
+        limit ?
+        offset ?
+        """
+            .formatted(searchWhereClause(normalizedQuery)),
         this::mapRow,
-        viewerUserId);
+        args.toArray());
+  }
+
+  public int count(String query) {
+    String normalizedQuery = normalizeQuery(query);
+    List<Object> args = new ArrayList<>();
+    addSearchArgs(args, normalizedQuery);
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from novels n
+            %s
+            """
+                .formatted(searchWhereClause(normalizedQuery)),
+            Integer.class,
+            args.toArray());
+    return count == null ? 0 : count;
+  }
+
+  public int sumRatingCount(String query) {
+    String normalizedQuery = normalizeQuery(query);
+    List<Object> args = new ArrayList<>();
+    addSearchArgs(args, normalizedQuery);
+    Number total =
+        jdbcTemplate.queryForObject(
+            """
+            select coalesce(sum(n.rating_count), 0)
+            from novels n
+            %s
+            """
+                .formatted(searchWhereClause(normalizedQuery)),
+            Number.class,
+            args.toArray());
+    return total == null ? 0 : total.intValue();
   }
 
   public Optional<NovelRecord> findById(Long id, UUID viewerUserId) {
@@ -271,5 +317,28 @@ public class NovelRepository {
 
   private Instant toInstant(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toInstant();
+  }
+
+  private String normalizeQuery(String query) {
+    if (query == null || query.isBlank()) {
+      return "";
+    }
+    return query.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private String searchWhereClause(String normalizedQuery) {
+    if (normalizedQuery == null || normalizedQuery.isBlank()) {
+      return "";
+    }
+    return "where lower(n.title) like ? or lower(coalesce(n.author, '')) like ?";
+  }
+
+  private void addSearchArgs(List<Object> args, String normalizedQuery) {
+    if (normalizedQuery == null || normalizedQuery.isBlank()) {
+      return;
+    }
+    String pattern = "%" + normalizedQuery + "%";
+    args.add(pattern);
+    args.add(pattern);
   }
 }

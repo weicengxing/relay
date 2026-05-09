@@ -1,11 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as api from '../api';
+
+const NOVEL_PAGE_SIZE = 20;
 
 const novels = ref([]);
 const ranking = ref([]);
 const selectedNovel = ref(null);
 const loading = ref(false);
+const loadingMore = ref(false);
 const detailLoading = ref(false);
 const rankingLoading = ref(false);
 const uploading = ref(false);
@@ -18,6 +21,13 @@ const boardLimit = ref(20);
 const pageTab = ref('read');
 const uploadedFileName = ref('');
 const searchQuery = ref('');
+const listError = ref('');
+const novelPage = ref(0);
+const novelTotal = ref(0);
+const novelTotalRatings = ref(0);
+const novelHasMore = ref(true);
+let searchTimer = null;
+let listRequestId = 0;
 
 const form = ref({
   title: '',
@@ -39,19 +49,21 @@ const boardLimits = [
 
 const selectedTitle = computed(() => selectedNovel.value?.title || '选择一本小说开始阅读');
 const selectedAuthor = computed(() => selectedNovel.value?.author || '匿名作者');
-const totalNovels = computed(() => novels.value.length);
-const totalRatings = computed(() => novels.value.reduce((sum, item) => sum + Number(item.ratingCount || 0), 0));
+const totalNovels = computed(() => novelTotal.value || novels.value.length);
+const totalRatings = computed(() => novelTotalRatings.value || novels.value.reduce((sum, item) => sum + Number(item.ratingCount || 0), 0));
+const isSearching = computed(() => Boolean(searchQuery.value.trim()));
+const novelCountLabel = computed(() => {
+  if (!totalNovels.value) return '0 本';
+  if (novels.value.length >= totalNovels.value) return `${totalNovels.value} 本`;
+  return `${novels.value.length} / ${totalNovels.value} 本`;
+});
 const topScore = computed(() => {
   const best = ranking.value.find((item) => item.ratingCount > 0);
   return best ? Number(best.averageRating || 0).toFixed(1) : '0.0';
 });
 
 const filteredNovels = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return novels.value;
-  return novels.value.filter(
-    (n) => n.title?.toLowerCase().includes(q) || n.author?.toLowerCase().includes(q),
-  );
+  return novels.value;
 });
 
 const boardItems = computed(() => {
@@ -70,15 +82,78 @@ onMounted(async () => {
   await Promise.all([loadNovels(), loadRanking()]);
 });
 
-async function loadNovels() {
-  loading.value = true;
+onBeforeUnmount(() => {
+  if (searchTimer) {
+    window.clearTimeout(searchTimer);
+  }
+});
+
+watch(searchQuery, () => {
+  if (searchTimer) {
+    window.clearTimeout(searchTimer);
+  }
+  searchTimer = window.setTimeout(() => {
+    loadNovels({ reset: true });
+  }, 300);
+});
+
+async function loadNovels({ reset = true } = {}) {
+  if (!reset && (loading.value || loadingMore.value || !novelHasMore.value)) return;
+
+  const nextPage = reset ? 1 : novelPage.value + 1;
+  const requestedQuery = searchQuery.value.trim();
+  const requestId = ++listRequestId;
+  if (reset) {
+    loading.value = true;
+  } else {
+    loadingMore.value = true;
+  }
+  listError.value = '';
   try {
-    novels.value = await api.getNovels();
+    const page = await api.getNovels({
+      page: nextPage,
+      size: NOVEL_PAGE_SIZE,
+      query: requestedQuery,
+    });
+    if (requestId !== listRequestId || requestedQuery !== searchQuery.value.trim()) {
+      return;
+    }
+    const items = Array.isArray(page) ? page : page.items || [];
+    novels.value = reset ? items : mergeNovels(novels.value, items);
+    novelPage.value = Array.isArray(page) ? nextPage : page.page || nextPage;
+    novelTotal.value = Array.isArray(page) ? novels.value.length : page.total || 0;
+    novelTotalRatings.value = Array.isArray(page) ? totalRatings.value : page.totalRatings || 0;
+    novelHasMore.value = Array.isArray(page) ? false : Boolean(page.hasMore);
     if (!selectedNovel.value && novels.value.length) {
       await openNovel(novels.value[0].id);
     }
+  } catch (error) {
+    listError.value = error.message || '小说列表加载失败';
   } finally {
-    loading.value = false;
+    if (reset) {
+      if (requestId === listRequestId) {
+        loading.value = false;
+      }
+    } else {
+      loadingMore.value = false;
+    }
+  }
+}
+
+function mergeNovels(current, incoming) {
+  const seen = new Set(current.map((item) => item.id));
+  return current.concat(incoming.filter((item) => !seen.has(item.id)));
+}
+
+function loadMoreNovels() {
+  return loadNovels({ reset: false });
+}
+
+function handleLibraryScroll(event) {
+  const el = event.currentTarget;
+  if (!el || loading.value || loadingMore.value || !novelHasMore.value) return;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
+    loadMoreNovels();
   }
 }
 
@@ -304,10 +379,10 @@ function rankClass(rank) {
       </transition>
 
       <div v-if="!showUpload" class="workspace">
-        <section class="library">
+        <section class="library" @scroll.passive="handleLibraryScroll">
           <div class="section-head">
             <h2>全部小说</h2>
-            <span>{{ filteredNovels.length }} 本</span>
+            <span>{{ novelCountLabel }}</span>
           </div>
           <div class="search-box">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -317,22 +392,29 @@ function rankClass(rank) {
             <input v-model="searchQuery" placeholder="搜索标题或作者..." />
           </div>
           <div v-if="loading" class="state">加载中...</div>
+          <div v-else-if="listError" class="state error-text">{{ listError }}</div>
+          <div v-else-if="isSearching && !novels.length" class="state">没有找到匹配的小说</div>
           <div v-else-if="!novels.length" class="state">还没有小说，先上传一本吧</div>
-          <div v-else-if="!filteredNovels.length" class="state">没有找到匹配的小说</div>
-          <button
-            v-for="novel in filteredNovels"
-            v-else
-            :key="novel.id"
-            class="novel-row"
-            :class="{ active: selectedNovel?.id === novel.id }"
-            type="button"
-            @click="openNovel(novel.id)"
-          >
-            <span class="novel-title">{{ novel.title }}</span>
-            <span class="novel-meta">{{ novel.author || '匿名作者' }} · {{ formatDate(novel.createdAt) }}</span>
-            <span class="novel-excerpt">{{ novel.excerpt }}</span>
-            <span class="novel-score">{{ ratingText(novel) }} · {{ novel.ratingCount }} 人</span>
-          </button>
+          <template v-else>
+            <button
+              v-for="novel in filteredNovels"
+              :key="novel.id"
+              class="novel-row"
+              :class="{ active: selectedNovel?.id === novel.id }"
+              type="button"
+              @click="openNovel(novel.id)"
+            >
+              <span class="novel-title">{{ novel.title }}</span>
+              <span class="novel-meta">{{ novel.author || '匿名作者' }} · {{ formatDate(novel.createdAt) }}</span>
+              <span class="novel-excerpt">{{ novel.excerpt }}</span>
+              <span class="novel-score">{{ ratingText(novel) }} · {{ novel.ratingCount }} 人</span>
+            </button>
+            <div v-if="loadingMore" class="state list-tail-state">继续加载中...</div>
+            <button v-else-if="novelHasMore" class="load-more-btn" type="button" @click="loadMoreNovels">
+              加载更多
+            </button>
+            <div v-else class="list-end">已加载全部</div>
+          </template>
         </section>
 
         <section class="reader">
@@ -1192,6 +1274,11 @@ textarea:focus {
   overflow: hidden;
 }
 
+.library {
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+
 .section-head {
   height: 54px;
   padding: 0 16px;
@@ -1287,6 +1374,35 @@ textarea:focus {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.list-tail-state {
+  min-height: 58px;
+}
+
+.load-more-btn {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 14px 16px;
+  transition: background var(--duration) var(--ease);
+}
+
+.load-more-btn:hover {
+  background: var(--primary-soft);
+}
+
+.list-end {
+  padding: 14px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .reader-head {

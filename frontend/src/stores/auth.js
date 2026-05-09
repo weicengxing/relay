@@ -49,5 +49,12 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('balance', String(balance.value));
   }
 
-  return { token, userId, email, balance, isLoggedIn, register, login, logout, setBalance };
+  async function refreshBalance() {
+    if (!token.value) return null;
+    const data = await api.getBalance();
+    setBalance(data?.balance);
+    return data;
+  }
+
+  return { token, userId, email, balance, isLoggedIn, register, login, logout, setBalance, refreshBalance };
 });

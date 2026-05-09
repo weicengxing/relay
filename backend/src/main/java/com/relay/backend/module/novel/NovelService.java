@@ -4,6 +4,7 @@ import com.relay.backend.common.error.AppException;
 import com.relay.backend.common.error.ErrorCode;
 import com.relay.backend.common.redis.RedisStateService;
 import com.relay.backend.module.novel.dto.CreateNovelRequest;
+import com.relay.backend.module.novel.dto.NovelPageResponse;
 import com.relay.backend.module.novel.dto.NovelResponse;
 import com.relay.backend.module.novel.dto.NovelSummaryResponse;
 import com.relay.backend.module.novel.dto.RateNovelRequest;
@@ -35,8 +36,23 @@ public class NovelService {
   }
 
   @Transactional(readOnly = true)
-  public List<NovelSummaryResponse> list(UUID viewerUserId) {
-    return novelRepository.findAll(viewerUserId).stream().map(this::toSummary).toList();
+  public NovelPageResponse list(UUID viewerUserId, int page, int size, String query) {
+    int normalizedPage = Math.max(1, page);
+    int normalizedSize = Math.max(1, Math.min(size, 50));
+    int offset = (normalizedPage - 1) * normalizedSize;
+    int total = novelRepository.count(query);
+    int totalRatings = novelRepository.sumRatingCount(query);
+    List<NovelSummaryResponse> items =
+        novelRepository.findPage(viewerUserId, query, normalizedSize, offset).stream()
+            .map(this::toSummary)
+            .toList();
+    return new NovelPageResponse(
+        items,
+        normalizedPage,
+        normalizedSize,
+        total,
+        totalRatings,
+        offset + items.size() < total);
   }
 
   @Transactional(readOnly = true)

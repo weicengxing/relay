@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRouter, useRoute } from 'vue-router';
 import * as api from '../api';
@@ -14,6 +14,9 @@ const announcementUnread = ref(0);
 const announcementOpen = ref(false);
 const announcementLoading = ref(false);
 const announcementError = ref('');
+let stopBalanceStream = null;
+let balanceRetryTimer = null;
+let disposed = false;
 
 const displayBadge = computed(() => (announcementBadge.value > 99 ? '99+' : String(announcementBadge.value)));
 
@@ -38,6 +41,74 @@ async function loadAnnouncements() {
   } finally {
     announcementLoading.value = false;
   }
+}
+
+async function refreshBalanceQuietly() {
+  try {
+    await auth.refreshBalance();
+  } catch (error) {
+    if (isAuthGone(error)) {
+      endExpiredSession();
+    }
+  }
+}
+
+function clearBalanceRetry() {
+  if (balanceRetryTimer) {
+    clearTimeout(balanceRetryTimer);
+    balanceRetryTimer = null;
+  }
+}
+
+function startBalanceStream() {
+  if (disposed || stopBalanceStream || !auth.isLoggedIn) {
+    return;
+  }
+
+  stopBalanceStream = api.streamBalanceUpdates({
+    onBalance(payload) {
+      if (payload?.balance !== undefined) {
+        auth.setBalance(payload.balance);
+      }
+    },
+    onClose() {
+      handleBalanceStreamStopped();
+    },
+    onError(error) {
+      if (isAuthGone(error)) {
+        endExpiredSession();
+        return;
+      }
+      handleBalanceStreamStopped();
+    },
+  });
+}
+
+function handleBalanceStreamStopped() {
+  if (disposed || !auth.isLoggedIn) {
+    return;
+  }
+  if (stopBalanceStream) {
+    stopBalanceStream();
+    stopBalanceStream = null;
+  }
+  clearBalanceRetry();
+  balanceRetryTimer = setTimeout(startBalanceStream, 3000);
+}
+
+function isAuthGone(error) {
+  return error?.status === 401 || error?.status === 404 || error?.code === 'UNAUTHORIZED';
+}
+
+function endExpiredSession() {
+  disposed = true;
+  clearBalanceRetry();
+  if (stopBalanceStream) {
+    stopBalanceStream();
+    stopBalanceStream = null;
+  }
+  auth.logout();
+  router.push('/login');
 }
 
 async function handleAnnouncementClick() {
@@ -80,7 +151,22 @@ function formatAnnouncementTime(value) {
   }
 }
 
-onMounted(loadAnnouncements);
+onMounted(() => {
+  loadAnnouncements();
+  refreshBalanceQuietly();
+  startBalanceStream();
+  window.addEventListener('focus', refreshBalanceQuietly);
+});
+
+onBeforeUnmount(() => {
+  disposed = true;
+  clearBalanceRetry();
+  if (stopBalanceStream) {
+    stopBalanceStream();
+    stopBalanceStream = null;
+  }
+  window.removeEventListener('focus', refreshBalanceQuietly);
+});
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/></svg>` },

@@ -97,7 +97,7 @@ public class GlobalExceptionHandler {
     }
     String path = request.getRequestURI();
     String accept = request.getHeader(HttpHeaders.ACCEPT);
-    return (path.startsWith("/v1/") || path.startsWith("/backend-api/codex/"))
+    return (path.startsWith("/v1/") || path.startsWith("/backend-api/codex/") || path.equals("/api/balance/stream"))
         && containsEventStream(accept);
   }
 

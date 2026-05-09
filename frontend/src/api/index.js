@@ -189,6 +189,33 @@ function parseEventData(data) {
   }
 }
 
+function dispatchBalanceEvent(block, handlers) {
+  const lines = block.split(/\r?\n/);
+  let event = 'message';
+  const dataLines = [];
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+  if (!dataLines.length) {
+    return;
+  }
+
+  const payload = parseEventData(dataLines.join('\n'));
+  if (event === 'error') {
+    const err = new Error(payload?.error?.message || payload?.message || 'Balance stream failed');
+    err.code = payload?.error?.code || payload?.code;
+    handlers.onError?.(err);
+    return;
+  }
+  if (event === 'message' || event === 'balance') {
+    handlers.onBalance?.(payload);
+  }
+}
+
 export function resetWebChatConversation() {
   return request('/web-chat/conversation/reset', {
     method: 'POST',
@@ -206,7 +233,57 @@ export function markAnnouncementsRead() {
 }
 
 export async function getBalance() {
-  return { balance: 0 };
+  return request('/balance');
+}
+
+export function streamBalanceUpdates(handlers = {}) {
+  const controller = new AbortController();
+
+  (async () => {
+    const headers = { Accept: 'text/event-stream, application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${BASE}/balance/stream`, {
+        headers,
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw await responseError(res);
+      }
+      if (!res.body) {
+        handlers.onClose?.();
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          dispatchBalanceEvent(block, handlers);
+        }
+        if (done) break;
+      }
+
+      if (buffer.trim()) {
+        dispatchBalanceEvent(buffer, handlers);
+      }
+      handlers.onClose?.();
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        handlers.onError?.(err);
+      }
+    }
+  })();
+
+  return () => controller.abort();
 }
 
 export async function createRecharge(amount, remark) {
@@ -220,8 +297,16 @@ export function redeemCode(code) {
   });
 }
 
-export function getNovels() {
-  return request('/novels');
+export function getNovels({ page = 1, size = 20, query = '' } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+  const trimmedQuery = query.trim();
+  if (trimmedQuery) {
+    params.set('q', trimmedQuery);
+  }
+  return request(`/novels?${params.toString()}`);
 }
 
 export function getNovelRanking(limit = 20) {

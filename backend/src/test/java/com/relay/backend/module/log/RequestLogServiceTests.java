@@ -10,6 +10,7 @@ import com.relay.backend.module.apikey.ApiKeyRecord;
 import com.relay.backend.module.proxy.ClientType;
 import com.relay.backend.module.proxy.ModelCatalogItem;
 import com.relay.backend.module.proxy.ModelCatalogRepository;
+import com.relay.backend.module.user.BalanceUpdatePublisher;
 import com.relay.backend.module.user.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,8 +29,12 @@ class RequestLogServiceTests {
     RequestLogRepository requestLogRepository = mock(RequestLogRepository.class);
     ModelCatalogRepository modelCatalogRepository = mock(ModelCatalogRepository.class);
     UserRepository userRepository = mock(UserRepository.class);
+    BalanceUpdatePublisher balanceUpdatePublisher = mock(BalanceUpdatePublisher.class);
     BillingSettingsRepository billingSettingsRepository = mock(BillingSettingsRepository.class);
     when(billingSettingsRepository.costMultiplier()).thenReturn(new BigDecimal("1.2"));
+    when(userRepository.deductBalance(
+            UUID.fromString("00000000-0000-0000-0000-000000000001"), new BigDecimal("0.007769")))
+        .thenReturn(new BigDecimal("4.992231"));
     when(modelCatalogRepository.findById("gpt-5.4"))
         .thenReturn(
             Optional.of(
@@ -47,6 +52,7 @@ class RequestLogServiceTests {
             requestLogRepository,
             modelCatalogRepository,
             userRepository,
+            balanceUpdatePublisher,
             billingSettingsRepository,
             new ObjectMapper());
 
@@ -98,5 +104,7 @@ class RequestLogServiceTests {
     verify(userRepository)
         .deductBalance(
             UUID.fromString("00000000-0000-0000-0000-000000000001"), new BigDecimal("0.007769"));
+    verify(balanceUpdatePublisher)
+        .publish(UUID.fromString("00000000-0000-0000-0000-000000000001"), new BigDecimal("4.992231"));
   }
 }

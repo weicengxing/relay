@@ -69,20 +69,6 @@ public class UserRepository {
         .findFirst();
   }
 
-  public Optional<UUID> findFirstId() {
-    return jdbcTemplate
-        .query(
-            """
-            select id
-            from users
-            order by created_at
-            limit 1
-            """,
-            (rs, rowNum) -> rs.getObject("id", UUID.class))
-        .stream()
-        .findFirst();
-  }
-
   public BigDecimal addBalance(UUID userId, BigDecimal amount) {
     return jdbcTemplate.queryForObject(
         """

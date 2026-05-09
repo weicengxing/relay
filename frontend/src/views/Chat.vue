@@ -58,6 +58,7 @@ async function sendMessage() {
   loading.value = true;
   messages.value.push({ role: 'user', content, images: outgoingImages });
   const assistant = { role: 'assistant', content: '', pending: true };
+  const streamWriter = createStreamWriter(assistant);
   messages.value.push(assistant);
   await scrollToBottom();
 
@@ -76,16 +77,13 @@ async function sendMessage() {
     };
     const result = await api.streamWebChatMessage(streamPayload, {
       onDelta(delta) {
-        assistant.pending = false;
-        assistant.content += delta;
-        scrollToBottom();
+        streamWriter.append(delta);
       },
       onReplace(text) {
-        assistant.pending = false;
-        assistant.content = text;
-        scrollToBottom();
+        streamWriter.replace(text);
       },
     });
+    await streamWriter.finish();
     assistant.content = assistant.content || result?.answer || '模型没有返回文本。';
     assistant.pending = false;
     if (result) {
@@ -100,6 +98,7 @@ async function sendMessage() {
     }
     newConversation.value = false;
   } catch (err) {
+    streamWriter.cancel();
     assistant.pending = false;
     assistant.error = true;
     assistant.content = `请求失败：${err.message || '发送失败'}`;
@@ -107,6 +106,71 @@ async function sendMessage() {
     loading.value = false;
     await scrollToBottom();
   }
+}
+
+function createStreamWriter(message) {
+  let queue = '';
+  let frame = null;
+  let idleResolve = null;
+
+  const schedule = () => {
+    if (!frame) {
+      frame = requestAnimationFrame(writeStep);
+    }
+  };
+
+  const resolveIdle = () => {
+    if (idleResolve) {
+      idleResolve();
+      idleResolve = null;
+    }
+  };
+
+  const writeStep = () => {
+    frame = null;
+    if (!queue) {
+      resolveIdle();
+      return;
+    }
+
+    const chunkSize = queue.length > 240 ? 10 : queue.length > 80 ? 7 : 4;
+    message.pending = false;
+    message.content += queue.slice(0, chunkSize);
+    queue = queue.slice(chunkSize);
+    scrollToBottom();
+    schedule();
+  };
+
+  return {
+    append(delta) {
+      if (!delta) return;
+      queue += delta;
+      message.pending = false;
+      schedule();
+    },
+    replace(text) {
+      queue = '';
+      message.pending = false;
+      message.content = text || '';
+      scrollToBottom();
+      resolveIdle();
+    },
+    finish() {
+      if (!queue) return Promise.resolve();
+      return new Promise((resolve) => {
+        idleResolve = resolve;
+        schedule();
+      });
+    },
+    cancel() {
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
+      frame = null;
+      queue = '';
+      resolveIdle();
+    },
+  };
 }
 
 async function startNewConversation() {

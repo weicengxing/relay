@@ -3,6 +3,7 @@ package com.relay.backend.module.novel;
 import com.relay.backend.common.api.ApiResponse;
 import com.relay.backend.module.auth.AuthTokenService;
 import com.relay.backend.module.novel.dto.CreateNovelRequest;
+import com.relay.backend.module.novel.dto.NovelPageResponse;
 import com.relay.backend.module.novel.dto.NovelResponse;
 import com.relay.backend.module.novel.dto.NovelSummaryResponse;
 import com.relay.backend.module.novel.dto.RateNovelRequest;
@@ -31,9 +32,12 @@ public class NovelController {
   }
 
   @GetMapping
-  public ApiResponse<List<NovelSummaryResponse>> list(
-      @RequestHeader(name = "Authorization", required = false) String authorization) {
-    return ApiResponse.ok(novelService.list(resolveUserId(authorization)));
+  public ApiResponse<NovelPageResponse> list(
+      @RequestHeader(name = "Authorization", required = false) String authorization,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "20") int size,
+      @RequestParam(name = "q", defaultValue = "") String query) {
+    return ApiResponse.ok(novelService.list(resolveUserId(authorization), page, size, query));
   }
 
   @GetMapping("/ranking")
