@@ -16,6 +16,48 @@ insert into app_settings (setting_key, setting_value, description)
 values ('openai.concurrent_limit', '20', 'Global concurrent request limit for OpenAI/Codex upstream services')
 on conflict (setting_key) do nothing;
 
+create table if not exists openai_services (
+  id bigserial primary key,
+  api_endpoint text not null,
+  token text not null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists claude_services (
+  id bigserial primary key,
+  api_endpoint text not null,
+  token text not null,
+  concurrent_limit int not null default 20,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists model_catalog (
+  id text primary key,
+  name text not null,
+  provider text not null default 'OpenAI',
+  input_price numeric(12, 4) not null,
+  output_price numeric(12, 4) not null,
+  cached_input_price numeric(12, 4) not null,
+  cache_creation_price numeric(12, 4) not null,
+  tags text not null default '',
+  sort_order int not null default 0,
+  enabled boolean not null default true
+);
+
+insert into claude_services (api_endpoint, token, concurrent_limit)
+select
+  'https://token-plan-cn.xiaomimimo.com/anthropic',
+  'tp-cfo7o6q5y38o2gwrrttalgzw8v4xuleci5id7nqbsmfdoqpk',
+  20
+where not exists (
+  select 1
+  from claude_services
+  where api_endpoint = 'https://token-plan-cn.xiaomimimo.com/anthropic'
+    and token = 'tp-cfo7o6q5y38o2gwrrttalgzw8v4xuleci5id7nqbsmfdoqpk'
+);
+
 insert into app_settings (setting_key, setting_value, description)
 values (
   'billing.cost_multiplier',

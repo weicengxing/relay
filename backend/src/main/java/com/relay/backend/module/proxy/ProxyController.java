@@ -67,6 +67,7 @@ public class ProxyController {
           "content-length",
           "host",
           "authorization",
+          "x-api-key",
           "connection",
           "keep-alive",
           "proxy-authenticate",
@@ -136,7 +137,9 @@ public class ProxyController {
 
     com.relay.backend.module.apikey.ApiKeyRecord apiKey;
     try {
-      apiKey = apiKeyService.authenticateRawKey(extractBearer(request.getHeader(HttpHeaders.AUTHORIZATION)));
+      apiKey =
+          apiKeyService.authenticateRawKey(
+              extractProxyApiKey(request.getHeader(HttpHeaders.AUTHORIZATION), request.getHeader("x-api-key")));
     } catch (AppException exception) {
       return localErrorResponse(HttpStatus.UNAUTHORIZED, "Invalid API key", eventStream);
     } catch (Exception exception) {
@@ -272,7 +275,11 @@ public class ProxyController {
                   values.forEach(value -> builder.header(name, value));
                 }
               });
-      builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + upstream.token());
+      if (clientType == ClientType.CLAUDE) {
+        applyClaudeAuthHeaders(builder, upstream);
+      } else {
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + upstream.token());
+      }
     }
 
     builder.method(request.method(), requestBodyPublisher(request.method(), body));
@@ -320,6 +327,19 @@ public class ProxyController {
     builder.setHeader("version", CODEX_UPSTREAM_VERSION);
   }
 
+  private void applyClaudeAuthHeaders(HttpRequest.Builder builder, UpstreamConfig upstream) {
+    String token = cleanBearerToken(upstream.token());
+    builder.setHeader("x-api-key", token);
+    if (isXiaomiTokenPlanEndpoint(upstream.apiEndpoint())) {
+      builder.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
+  }
+
+  private boolean isXiaomiTokenPlanEndpoint(String apiEndpoint) {
+    return apiEndpoint != null
+        && apiEndpoint.toLowerCase(Locale.ROOT).contains("token-plan-cn.xiaomimimo.com");
+  }
+
   private boolean isStreamRequest(byte[] body) {
     if (body == null || body.length == 0) {
       return false;
@@ -329,7 +349,7 @@ public class ProxyController {
 
   private byte[] normalizeUpstreamBody(
       byte[] body, UpstreamConfig upstream, ClientType clientType, boolean eventStream) {
-    if (clientType != ClientType.CODEX || body == null || body.length == 0) {
+    if (body == null || body.length == 0) {
       return body;
     }
 
@@ -337,6 +357,12 @@ public class ProxyController {
       JsonNode root = objectMapper.readTree(body);
       if (!(root instanceof ObjectNode rootObject)) {
         return body;
+      }
+      if (clientType == ClientType.CLAUDE) {
+        if (isXiaomiTokenPlanEndpoint(upstreamApiEndpoint(upstream))) {
+          normalizeClaudeXiaomiModel(rootObject);
+        }
+        return objectMapper.writeValueAsBytes(rootObject);
       }
       if (upstream.usesCodexProfileRequest()) {
         applyCodexProfileBodyDefaults(rootObject, upstream.codexProfile());
@@ -349,9 +375,21 @@ public class ProxyController {
       }
       return objectMapper.writeValueAsBytes(rootObject);
     } catch (Exception exception) {
-      log.warn("Unable to normalize Codex upstream body; forwarding original body", exception);
+      log.warn("Unable to normalize upstream body; forwarding original body", exception);
       return body;
     }
+  }
+
+  private void normalizeClaudeXiaomiModel(ObjectNode rootObject) {
+    JsonNode model = rootObject.get("model");
+    if (model == null || model.isNull()) {
+      return;
+    }
+    String modelText = model.asText(null);
+    if (modelText == null || modelText.isBlank()) {
+      return;
+    }
+    rootObject.put("model", modelText.toLowerCase(Locale.ROOT));
   }
 
   private boolean isChatGptCodexEndpoint(String apiEndpoint) {
@@ -715,10 +753,21 @@ public class ProxyController {
     return new BufferedHttpResponse(response, body);
   }
 
-  private String extractBearer(String authorization) {
+  private String extractProxyApiKey(String authorization, String xApiKey) {
+    String bearer = extractBearerOrNull(authorization);
+    if (bearer != null) {
+      return bearer;
+    }
+    if (xApiKey != null && !xApiKey.isBlank()) {
+      return xApiKey.trim();
+    }
+    throw new AppException(ErrorCode.UNAUTHORIZED, "Missing API key", HttpStatus.UNAUTHORIZED);
+  }
+
+  private String extractBearerOrNull(String authorization) {
     String prefix = "Bearer ";
     if (authorization == null || !authorization.startsWith(prefix)) {
-      throw new AppException(ErrorCode.UNAUTHORIZED, "Missing API key", HttpStatus.UNAUTHORIZED);
+      return null;
     }
     return authorization.substring(prefix.length());
   }

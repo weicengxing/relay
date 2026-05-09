@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -74,7 +75,13 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
         .body(
             ApiResponse.fail(
-                ApiError.of(ErrorCode.VALIDATION_FAILED, "Request validation failed", details)));
+            ApiError.of(ErrorCode.VALIDATION_FAILED, "Request validation failed", details)));
+  }
+
+  @ExceptionHandler(AsyncRequestNotUsableException.class)
+  public void handleAsyncRequestNotUsable(
+      AsyncRequestNotUsableException exception, HttpServletRequest request) {
+    log.debug("Client disconnected from async request: {} {}", request.getMethod(), request.getRequestURI());
   }
 
   @ExceptionHandler(Exception.class)

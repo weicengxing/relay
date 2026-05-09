@@ -1,0 +1,31 @@
+{
+  "capturedAt" : "2026-05-09T15:05:04.304490200Z",
+  "method" : "POST",
+  "url" : "http://api.relaywei.ccwu.cc/v1/responses",
+  "path" : "/v1/responses",
+  "query" : null,
+  "clientType" : "CODEX",
+  "headers" : {
+    "Host" : [ "api.relaywei.ccwu.cc" ],
+    "User-Agent" : [ "Codex Desktop/0.128.0-alpha.1 (Windows 10.0.19045; x86_64)" ],
+    "Content-Length" : [ "112" ],
+    "Accept" : [ "text/event-stream" ],
+    "Accept-Encoding" : [ "gzip" ],
+    "Authorization" : [ "Bearer relay_6YeQcKIJ7uPavT5q5OyAph8SFTaxDcWcrys72DIf8zo" ],
+    "Cdn-Loop" : [ "cloudflare; loops=1" ],
+    "Cf-Connecting-Ip" : [ "58.194.169.0" ],
+    "Cf-Ipcountry" : [ "CN" ],
+    "Cf-Ray" : [ "9f9199a8dd588211-SIN" ],
+    "Cf-Visitor" : [ "{\"scheme\":\"http\"}" ],
+    "Cf-Warp-Tag-Id" : [ "929132cd-2637-4154-a5d1-78aaa6b3466d" ],
+    "Connection" : [ "keep-alive" ],
+    "Content-Type" : [ "application/json" ],
+    "Originator" : [ "Codex Desktop" ],
+    "X-Client-Request-Id" : [ "codex-xiaomi-cleanup-smoke-1" ],
+    "X-Codex-Window-Id" : [ "codex-xiaomi-cleanup-smoke-1:0" ],
+    "X-Forwarded-For" : [ "58.194.169.0" ],
+    "X-Forwarded-Proto" : [ "http" ]
+  },
+  "bodyFile" : "latest-body.json",
+  "body" : "{model:gpt-5.4-mini,instructions:You are a concise test assistant. Reply with pong only.,input:ping,stream:true}"
+}

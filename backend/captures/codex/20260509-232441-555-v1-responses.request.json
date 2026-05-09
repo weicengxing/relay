@@ -1,0 +1,23 @@
+{
+  "capturedAt" : "2026-05-09T15:24:41.555935Z",
+  "method" : "POST",
+  "url" : "http://localhost:8080/v1/responses",
+  "path" : "/v1/responses",
+  "query" : null,
+  "clientType" : "CODEX",
+  "headers" : {
+    "Originator" : [ "Codex Desktop" ],
+    "Content-Type" : [ "application/json" ],
+    "Accept" : [ "text/event-stream" ],
+    "X-Client-Request-Id" : [ "codex-local-smoke-1742965a-596e-41c1-91d3-88d7f930c236" ],
+    "Authorization" : [ "Bearer relay_6YeQcKIJ7uPavT5q5OyAph8SFTaxDcWcrys72DIf8zo" ],
+    "X-Codex-Window-Id" : [ "codex-local-smoke-1742965a-596e-41c1-91d3-88d7f930c236:0" ],
+    "User-Agent" : [ "Codex Desktop/0.128.0-alpha.1 (Windows 10.0.19045; x86_64)" ],
+    "Host" : [ "localhost:8080" ],
+    "Content-Length" : [ "202" ],
+    "Expect" : [ "100-continue" ],
+    "Connection" : [ "Keep-Alive" ]
+  },
+  "bodyFile" : "latest-body.json",
+  "body" : "{\"model\":\"gpt-5.4-mini\",\"instructions\":\"You are a concise test assistant. Reply with pong only.\",\"input\":[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"ping\"}]}],\"stream\":true}"
+}

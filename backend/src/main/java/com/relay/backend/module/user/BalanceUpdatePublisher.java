@@ -1,7 +1,6 @@
 package com.relay.backend.module.user;
 
 import com.relay.backend.module.user.dto.BalanceResponse;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
@@ -41,9 +40,8 @@ public class BalanceUpdatePublisher {
   private void send(UUID userId, SseEmitter emitter, BigDecimal balance) {
     try {
       emitter.send(SseEmitter.event().name("balance").data(new BalanceResponse(safeBalance(balance))));
-    } catch (IOException | IllegalStateException exception) {
+    } catch (Exception exception) {
       remove(userId, emitter);
-      emitter.complete();
     }
   }
 

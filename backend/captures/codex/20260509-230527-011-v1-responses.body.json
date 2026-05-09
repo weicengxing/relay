@@ -1,0 +1,1 @@
+{"model":"gpt-5.4-mini","instructions":"You are a concise test assistant. Reply with pong only.","input":"ping","stream":true}

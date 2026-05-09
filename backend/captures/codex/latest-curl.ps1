@@ -5,18 +5,18 @@ curl.exe -N 'http://api.relaywei.ccwu.cc/v1/responses' `
   -H 'Accept-Encoding: gzip, br' `
   -H 'Authorization: Bearer relay_6YeQcKIJ7uPavT5q5OyAph8SFTaxDcWcrys72DIf8zo' `
   -H 'Cdn-Loop: cloudflare; loops=1' `
-  -H 'Cf-Connecting-Ip: 2001:da8:7001:2000::1:361c' `
-  -H 'Cf-Ipcountry: CN' `
-  -H 'Cf-Ray: 9f9033167d564e49-HKG' `
+  -H 'Cf-Connecting-Ip: 57.183.3.147' `
+  -H 'Cf-Ipcountry: JP' `
+  -H 'Cf-Ray: 9f91d10aacabdf7f-NRT' `
   -H 'Cf-Visitor: {"scheme":"https"}' `
   -H 'Cf-Warp-Tag-Id: 929132cd-2637-4154-a5d1-78aaa6b3466d' `
   -H 'Content-Type: application/json' `
   -H 'Originator: Codex Desktop' `
-  -H 'Session_id: 019e0c65-1575-7f53-8960-c461b7ee9895' `
-  -H 'X-Client-Request-Id: 019e0c65-1575-7f53-8960-c461b7ee9895' `
+  -H 'Session_id: 019e0d67-cf21-7fe0-a4af-55c85a435ef5' `
+  -H 'X-Client-Request-Id: 019e0d67-cf21-7fe0-a4af-55c85a435ef5' `
   -H 'X-Codex-Beta-Features: terminal_resize_reflow' `
-  -H 'X-Codex-Turn-Metadata: {"session_id":"019e0c65-1575-7f53-8960-c461b7ee9895","thread_source":"user","turn_id":"019e0c65-161c-7d21-9380-9a4d78e73221","sandbox":"windows_elevated","turn_started_at_unix_ms":1778324412015}' `
-  -H 'X-Codex-Window-Id: 019e0c65-1575-7f53-8960-c461b7ee9895:0' `
-  -H 'X-Forwarded-For: 2001:da8:7001:2000::1:361c' `
+  -H 'X-Codex-Turn-Metadata: {"session_id":"019e0d67-cf21-7fe0-a4af-55c85a435ef5","thread_source":"user","turn_id":"019e0d67-cf69-7c40-a0ea-bf60363197e7","sandbox":"windows_elevated","turn_started_at_unix_ms":1778341367680}' `
+  -H 'X-Codex-Window-Id: 019e0d67-cf21-7fe0-a4af-55c85a435ef5:0' `
+  -H 'X-Forwarded-For: 57.183.3.147' `
   -H 'X-Forwarded-Proto: https' `
   --data-binary "@$bodyPath"

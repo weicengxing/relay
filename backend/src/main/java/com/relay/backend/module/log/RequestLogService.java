@@ -243,8 +243,12 @@ public class RequestLogService {
 
   private UsageFields usageFromPayload(JsonNode root) {
     JsonNode response = objectAt(root, "response");
+    JsonNode message = objectAt(root, "message");
     JsonNode usage = firstObjectAt(response, "usage", root, "usage");
-    String model = firstText(textAt(response, "model"), textAt(root, "model"));
+    if (usage == null) {
+      usage = objectAt(message, "usage");
+    }
+    String model = firstText(textAt(response, "model"), textAt(root, "model"), textAt(message, "model"));
     if (usage == null) {
       return new UsageFields(model, null, null, null, null);
     }
