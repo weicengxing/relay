@@ -46,16 +46,19 @@ public class RequestLogService {
   private final RequestLogRepository requestLogRepository;
   private final ModelCatalogRepository modelCatalogRepository;
   private final UserRepository userRepository;
+  private final BillingSettingsRepository billingSettingsRepository;
   private final ObjectMapper objectMapper;
 
   public RequestLogService(
       RequestLogRepository requestLogRepository,
       ModelCatalogRepository modelCatalogRepository,
       UserRepository userRepository,
+      BillingSettingsRepository billingSettingsRepository,
       ObjectMapper objectMapper) {
     this.requestLogRepository = requestLogRepository;
     this.modelCatalogRepository = modelCatalogRepository;
     this.userRepository = userRepository;
+    this.billingSettingsRepository = billingSettingsRepository;
     this.objectMapper = objectMapper;
   }
 
@@ -419,7 +422,7 @@ public class RequestLogService {
             .add(price.cachedInputPrice().multiply(BigDecimal.valueOf(usage.cacheReadTokens())))
             .add(price.cacheCreationPrice().multiply(BigDecimal.valueOf(usage.cacheCreationTokens())))
             .divide(MILLION, 6, RoundingMode.HALF_UP);
-    return cost.setScale(6, RoundingMode.HALF_UP);
+    return cost.multiply(billingSettingsRepository.costMultiplier()).setScale(6, RoundingMode.HALF_UP);
   }
 
   private int regularInputTokens(ParsedUsage usage) {

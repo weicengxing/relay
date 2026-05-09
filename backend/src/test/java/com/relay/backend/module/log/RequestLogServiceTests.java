@@ -28,6 +28,8 @@ class RequestLogServiceTests {
     RequestLogRepository requestLogRepository = mock(RequestLogRepository.class);
     ModelCatalogRepository modelCatalogRepository = mock(ModelCatalogRepository.class);
     UserRepository userRepository = mock(UserRepository.class);
+    BillingSettingsRepository billingSettingsRepository = mock(BillingSettingsRepository.class);
+    when(billingSettingsRepository.costMultiplier()).thenReturn(new BigDecimal("1.2"));
     when(modelCatalogRepository.findById("gpt-5.4"))
         .thenReturn(
             Optional.of(
@@ -41,7 +43,12 @@ class RequestLogServiceTests {
                     new BigDecimal("1.00"),
                     List.of())));
     RequestLogService service =
-        new RequestLogService(requestLogRepository, modelCatalogRepository, userRepository, new ObjectMapper());
+        new RequestLogService(
+            requestLogRepository,
+            modelCatalogRepository,
+            userRepository,
+            billingSettingsRepository,
+            new ObjectMapper());
 
     String response =
         """
@@ -87,9 +94,9 @@ class RequestLogServiceTests {
     assertThat(saved.promptTokens()).isEqualTo(12000);
     assertThat(saved.completionTokens()).isEqualTo(321);
     assertThat(saved.cacheReadTokens()).isEqualTo(11648);
-    assertThat(saved.cost()).isEqualByComparingTo("0.006474");
+    assertThat(saved.cost()).isEqualByComparingTo("0.007769");
     verify(userRepository)
         .deductBalance(
-            UUID.fromString("00000000-0000-0000-0000-000000000001"), new BigDecimal("0.006474"));
+            UUID.fromString("00000000-0000-0000-0000-000000000001"), new BigDecimal("0.007769"));
   }
 }

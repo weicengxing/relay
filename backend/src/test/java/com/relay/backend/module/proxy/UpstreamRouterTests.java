@@ -37,6 +37,25 @@ class UpstreamRouterTests {
   }
 
   @Test
+  void acquireSkipsExcludedAndBusyOpenAiTokenServices() {
+    RedisStateService redisStateService = mock(RedisStateService.class);
+    UpstreamRouter router = router(redisStateService, 1, tokenServices(1L, 2L, 3L));
+
+    when(redisStateService.increment(eq("relay:upstream:cursor:codex"), any(Duration.class))).thenReturn(1L);
+    when(redisStateService.increment(eq("relay:upstream:active:codex:2"), any(Duration.class))).thenReturn(21L);
+    when(redisStateService.increment(eq("relay:upstream:active:codex:3"), any(Duration.class))).thenReturn(20L);
+
+    UpstreamLease lease = router.acquire(ClientType.CODEX, Set.of(1L));
+
+    assertThat(lease.config().id()).isEqualTo(3L);
+    assertThat(lease.config().usesCodexProfileRequest()).isFalse();
+    verify(redisStateService).decrement("relay:upstream:active:codex:2");
+
+    lease.close();
+    verify(redisStateService).decrement("relay:upstream:active:codex:3");
+  }
+
+  @Test
   void acquireFailsWhenEveryRemainingProfileIsBusy() {
     RedisStateService redisStateService = mock(RedisStateService.class);
     UpstreamRouter router = router(redisStateService, services(1L, 2L));
@@ -51,11 +70,16 @@ class UpstreamRouterTests {
   }
 
   private UpstreamRouter router(RedisStateService redisStateService, List<OpenAiServiceConfig> services) {
+    return router(redisStateService, 2, services);
+  }
+
+  private UpstreamRouter router(
+      RedisStateService redisStateService, int openAiRequestMode, List<OpenAiServiceConfig> services) {
     OpenAiServiceRepository openAiServiceRepository = mock(OpenAiServiceRepository.class);
     ClaudeServiceRepository claudeServiceRepository = mock(ClaudeServiceRepository.class);
     ProxyRuntimeSettingsRepository settingsRepository = mock(ProxyRuntimeSettingsRepository.class);
     when(openAiServiceRepository.findAll()).thenReturn(services);
-    when(settingsRepository.current()).thenReturn(new ProxyRuntimeSettings(2, 20));
+    when(settingsRepository.current()).thenReturn(new ProxyRuntimeSettings(openAiRequestMode, 20));
     return new UpstreamRouter(
         openAiServiceRepository, claudeServiceRepository, redisStateService, settingsRepository);
   }
@@ -87,6 +111,21 @@ class UpstreamRouterTests {
             null,
             now,
             now),
+        now,
+        now);
+  }
+
+  private List<OpenAiServiceConfig> tokenServices(Long... ids) {
+    return java.util.Arrays.stream(ids).map(this::tokenService).toList();
+  }
+
+  private OpenAiServiceConfig tokenService(Long id) {
+    Instant now = Instant.parse("2026-05-08T00:00:00Z");
+    return new OpenAiServiceConfig(
+        id,
+        "https://api.openai.com/v1",
+        "service-token-" + id,
+        null,
         now,
         now);
   }

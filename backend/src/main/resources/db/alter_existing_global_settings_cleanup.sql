@@ -18,6 +18,14 @@ on conflict (setting_key) do nothing;
 
 insert into app_settings (setting_key, setting_value, description)
 values (
+  'billing.cost_multiplier',
+  '1.2',
+  'Multiplier applied to calculated request cost before logging and balance deduction'
+)
+on conflict (setting_key) do nothing;
+
+insert into app_settings (setting_key, setting_value, description)
+values (
   'announcements.badge_default',
   '0',
   'Default announcement badge count before a user reads current announcements'

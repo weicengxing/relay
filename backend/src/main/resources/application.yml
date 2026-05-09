@@ -14,12 +14,13 @@ spring:
       request-timeout: 10m
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 app:
   cors:
     allowed-origins:
       - http://localhost:5173
+      - https://relay.pages.dev
   ai:
     api-base: ${AI_API_BASE:https://api.openai.com/v1}
   security:

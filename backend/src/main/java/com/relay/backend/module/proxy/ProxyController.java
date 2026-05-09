@@ -208,7 +208,7 @@ public class ProxyController {
         return localErrorResponse(HttpStatus.BAD_GATEWAY, "Unable to reach upstream service", eventStream);
       }
 
-      if (shouldInspectQuotaRetry(clientType, lease.config(), upstreamResponse.statusCode())) {
+      if (shouldInspectQuotaRetry(clientType, upstreamResponse.statusCode())) {
         byte[] upstreamResponseBody;
         try {
           upstreamResponseBody = readAndCloseResponseBody(upstreamResponse);
@@ -570,7 +570,7 @@ public class ProxyController {
               upstreamStatus = upstreamResponse.statusCode();
               upstreamContentType = upstreamResponse.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse(null);
 
-              if (shouldInspectQuotaRetry(clientType, activeLease.config(), upstreamStatus)) {
+              if (shouldInspectQuotaRetry(clientType, upstreamStatus)) {
                 byte[] upstreamResponseBody = readAndCloseResponseBody(upstreamResponse);
                 if (UpstreamQuotaErrorDetector.isRetryableQuotaError(upstreamStatus, upstreamResponseBody)) {
                   quotaFailedServiceIds.add(activeLease.config().id());
@@ -685,10 +685,8 @@ public class ProxyController {
     return new ResponseEntity<>(stream, headers, HttpStatus.OK);
   }
 
-  private boolean shouldInspectQuotaRetry(ClientType clientType, UpstreamConfig upstream, int statusCode) {
-    return clientType == ClientType.CODEX
-        && upstream.usesCodexProfileRequest()
-        && UpstreamQuotaErrorDetector.isRetryableStatus(statusCode);
+  static boolean shouldInspectQuotaRetry(ClientType clientType, int statusCode) {
+    return clientType == ClientType.CODEX && UpstreamQuotaErrorDetector.isRetryableStatus(statusCode);
   }
 
   private boolean isSuccessfulStatus(int statusCode) {
