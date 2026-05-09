@@ -222,6 +222,18 @@ export function resetWebChatConversation() {
   });
 }
 
+export function getWebChatHistory({ page = 1, size = 20 } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+  return request(`/web-chat/history?${params.toString()}`);
+}
+
+export function getWebChatHistoryDetail(id) {
+  return request(`/web-chat/history/${id}`);
+}
+
 export function getAnnouncements() {
   return request('/announcements');
 }

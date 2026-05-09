@@ -5,6 +5,7 @@ import com.relay.backend.common.error.ErrorCode;
 import com.relay.backend.module.webchat.dto.WebChatMessageRequest;
 import com.relay.backend.module.webchat.dto.WebChatMessageResponse;
 import com.relay.backend.module.webchat.dto.WebChatSessionResponse;
+import com.relay.backend.module.webchat.history.ChatHistoryService;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -69,15 +70,18 @@ public class WebChatService {
 
   private final WebChatRepository repository;
   private final ObjectMapper objectMapper;
+  private final ChatHistoryService chatHistoryService;
   private final HttpClient httpClient =
       HttpClient.newBuilder()
           .connectTimeout(Duration.ofSeconds(30))
           .version(HttpClient.Version.HTTP_1_1)
           .build();
 
-  public WebChatService(WebChatRepository repository, ObjectMapper objectMapper) {
+  public WebChatService(
+      WebChatRepository repository, ObjectMapper objectMapper, ChatHistoryService chatHistoryService) {
     this.repository = repository;
     this.objectMapper = objectMapper;
+    this.chatHistoryService = chatHistoryService;
   }
 
   public interface StreamSink {
@@ -156,13 +160,16 @@ public class WebChatService {
     String nextParentMessageId = firstNonBlank(result.parentMessageId(), parentMessageId);
     repository.saveSession(userId, config.id(), nextConversationId, nextParentMessageId, Instant.now());
 
-    return new WebChatMessageResponse(
-        result.answer(),
-        nextConversationId,
-        nextParentMessageId,
-        model,
-        config.id(),
-        config.name());
+    WebChatMessageResponse response =
+        new WebChatMessageResponse(
+            result.answer(),
+            nextConversationId,
+            nextParentMessageId,
+            model,
+            config.id(),
+            config.name());
+    chatHistoryService.recordTurnAsync(userId, request, response);
+    return response;
   }
 
   private WebChatSession findOrCreateSession(UUID userId) {

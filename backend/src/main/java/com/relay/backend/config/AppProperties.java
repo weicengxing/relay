@@ -14,6 +14,7 @@ public class AppProperties {
   private final RateLimit rateLimit = new RateLimit();
   private final Verification verification = new Verification();
   private final NovelStorage novelStorage = new NovelStorage();
+  private final ChatHistory chatHistory = new ChatHistory();
 
   public Cors getCors() {
     return cors;
@@ -41,6 +42,10 @@ public class AppProperties {
 
   public NovelStorage getNovelStorage() {
     return novelStorage;
+  }
+
+  public ChatHistory getChatHistory() {
+    return chatHistory;
   }
 
   public static class Cors {
@@ -171,6 +176,32 @@ public class AppProperties {
 
   public static class NovelStorage {
     private final Github github = new Github();
+
+    public Github getGithub() {
+      return github;
+    }
+  }
+
+  public static class ChatHistory {
+    private boolean enabled = true;
+    private long maxFileBytes = 5 * 1024 * 1024;
+    private final Github github = new Github();
+
+    public boolean isEnabled() {
+      return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+      this.enabled = enabled;
+    }
+
+    public long getMaxFileBytes() {
+      return maxFileBytes;
+    }
+
+    public void setMaxFileBytes(long maxFileBytes) {
+      this.maxFileBytes = maxFileBytes;
+    }
 
     public Github getGithub() {
       return github;

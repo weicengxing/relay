@@ -141,3 +141,19 @@ create index if not exists idx_novels_rating
 
 create index if not exists idx_novel_ratings_user_id
   on novel_ratings(user_id);
+
+create table if not exists web_chat_history_files (
+  id bigserial primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  sequence int not null,
+  object_key text not null,
+  content_url text not null default '',
+  size_bytes bigint not null default 0,
+  turn_count int not null default 0,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  unique (user_id, sequence)
+);
+
+create index if not exists idx_web_chat_history_files_user_updated
+  on web_chat_history_files(user_id, updated_at desc);

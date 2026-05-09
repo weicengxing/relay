@@ -43,3 +43,11 @@ app:
       branch: ${GITHUB_NOVEL_BRANCH:main}
       base-path: ${GITHUB_NOVEL_BASE_PATH:novels}
       token: ${GITHUB_NOVEL_TOKEN:}
+  chat-history:
+    enabled: ${CHAT_HISTORY_ENABLED:true}
+    max-file-bytes: ${CHAT_HISTORY_MAX_FILE_BYTES:5242880}
+    github:
+      repository: ${GITHUB_CHAT_HISTORY_REPOSITORY:}
+      branch: ${GITHUB_CHAT_HISTORY_BRANCH:main}
+      base-path: ${GITHUB_CHAT_HISTORY_BASE_PATH:chat-history}
+      token: ${GITHUB_CHAT_HISTORY_TOKEN:}
