@@ -83,3 +83,61 @@ create index if not exists idx_announcements_active_published_at
 
 create index if not exists idx_announcement_user_state_last_seen_at
   on announcement_user_state(last_seen_at);
+
+create table if not exists novels (
+  id bigserial primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  title text not null,
+  author text not null default '',
+  excerpt text not null default '',
+  content_object_key text not null,
+  content_url text not null,
+  content_size bigint not null default 0,
+  content_sha256 text not null default '',
+  rating_count int not null default 0,
+  rating_total numeric(18, 6) not null default 0,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+alter table novels
+  add column if not exists excerpt text not null default '';
+
+alter table novels
+  add column if not exists content_object_key text;
+
+alter table novels
+  add column if not exists content_url text;
+
+alter table novels
+  add column if not exists content_size bigint not null default 0;
+
+alter table novels
+  add column if not exists content_sha256 text not null default '';
+
+alter table novels
+  alter column content_object_key set not null;
+
+alter table novels
+  alter column content_url set not null;
+
+alter table novels
+  drop column if exists content;
+
+create table if not exists novel_ratings (
+  novel_id bigint not null references novels(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  score int not null check (score between 1 and 5),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  primary key (novel_id, user_id)
+);
+
+create index if not exists idx_novels_created_at
+  on novels(created_at desc);
+
+create index if not exists idx_novels_rating
+  on novels(rating_count desc, rating_total desc);
+
+create index if not exists idx_novel_ratings_user_id
+  on novel_ratings(user_id);

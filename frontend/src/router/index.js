@@ -20,8 +20,10 @@ const routes = [
     children: [
       { path: '', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
       { path: 'api-keys', name: 'ApiKeys', component: () => import('../views/ApiKeys.vue') },
+      { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
       { path: 'logs', name: 'Logs', component: () => import('../views/Logs.vue') },
       { path: 'models', name: 'Models', component: () => import('../views/Models.vue') },
+      { path: 'novels', name: 'Novels', component: () => import('../views/Novels.vue') },
       { path: 'recharge', name: 'Recharge', component: () => import('../views/Recharge.vue') },
     ],
   },

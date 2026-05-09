@@ -108,6 +108,31 @@ create table if not exists announcement_user_state (
   updated_at timestamp with time zone not null default now()
 );
 
+create table if not exists novels (
+  id bigserial primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  title text not null,
+  author text not null default '',
+  excerpt text not null default '',
+  content_object_key text not null,
+  content_url text not null,
+  content_size bigint not null default 0,
+  content_sha256 text not null default '',
+  rating_count int not null default 0,
+  rating_total numeric(18, 6) not null default 0,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists novel_ratings (
+  novel_id bigint not null references novels(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  score int not null check (score between 1 and 5),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  primary key (novel_id, user_id)
+);
+
 create table if not exists openai_services (
   id bigserial primary key,
   api_endpoint text not null,
@@ -132,6 +157,37 @@ create table if not exists openai_codex_profiles (
   reasoning_effort text,
   last_refresh timestamp with time zone,
   created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists web_chat_model_configs (
+  id bigserial primary key,
+  name text not null,
+  base_url text not null default 'https://chatgpt.com',
+  model text not null default 'gpt-5-3',
+  auth_header text,
+  bearer_token text,
+  account_id text,
+  conduit_token text,
+  sentinel_token text,
+  cookie text,
+  oai_device_id text,
+  oai_session_id text,
+  oai_client_build_number text,
+  oai_client_version text,
+  oai_is text,
+  user_agent text,
+  call_prepare boolean not null default true,
+  enabled boolean not null default true,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists web_chat_user_sessions (
+  user_id uuid primary key references users(id) on delete cascade,
+  config_id bigint not null references web_chat_model_configs(id),
+  conversation_id text,
+  parent_message_id text not null default 'client-created-root',
   updated_at timestamp with time zone not null default now()
 );
 
@@ -171,5 +227,15 @@ create index if not exists idx_announcements_active_published_at
   on announcements(active, published_at desc);
 create index if not exists idx_announcement_user_state_last_seen_at
   on announcement_user_state(last_seen_at);
+create index if not exists idx_novels_created_at
+  on novels(created_at desc);
+create index if not exists idx_novels_rating
+  on novels(rating_count desc, rating_total desc);
+create index if not exists idx_novel_ratings_user_id
+  on novel_ratings(user_id);
 create index if not exists idx_openai_codex_profiles_service_id
   on openai_codex_profiles(openai_service_id);
+create index if not exists idx_web_chat_model_configs_enabled
+  on web_chat_model_configs(enabled, id);
+create index if not exists idx_web_chat_user_sessions_config_id
+  on web_chat_user_sessions(config_id);

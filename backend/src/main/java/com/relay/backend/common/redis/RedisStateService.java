@@ -68,4 +68,9 @@ public class RedisStateService {
       String key, double minScore, double maxScore, long limit) {
     return redisTemplate.opsForZSet().rangeByScoreWithScores(key, minScore, maxScore, 0, limit);
   }
+
+  public Set<ZSetOperations.TypedTuple<String>> sortedSetReverseRangeWithScores(
+      String key, long offset, long limit) {
+    return redisTemplate.opsForZSet().reverseRangeWithScores(key, offset, offset + limit - 1);
+  }
 }

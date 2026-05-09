@@ -107,6 +107,20 @@ public class RedisTestConfig {
                   .map(entry -> new DefaultTypedTuple<>(entry.getKey(), entry.getValue()))
                   .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
             });
+    when(zSetOps.reverseRangeWithScores(anyString(), anyLong(), anyLong()))
+        .thenAnswer(
+            invocation -> {
+              String key = invocation.getArgument(0);
+              Long start = invocation.getArgument(1);
+              Long end = invocation.getArgument(2);
+              long limit = Math.max(0, end - start + 1);
+              return sortedSets.getOrDefault(key, Map.of()).entrySet().stream()
+                  .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                  .skip(start)
+                  .limit(limit)
+                  .map(entry -> new DefaultTypedTuple<>(entry.getKey(), entry.getValue()))
+                  .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+            });
     when(template.delete(anyString()))
         .thenAnswer(
             invocation -> {

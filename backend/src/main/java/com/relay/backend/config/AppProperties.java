@@ -13,6 +13,7 @@ public class AppProperties {
   private final Mail mail = new Mail();
   private final RateLimit rateLimit = new RateLimit();
   private final Verification verification = new Verification();
+  private final NovelStorage novelStorage = new NovelStorage();
 
   public Cors getCors() {
     return cors;
@@ -36,6 +37,10 @@ public class AppProperties {
 
   public Verification getVerification() {
     return verification;
+  }
+
+  public NovelStorage getNovelStorage() {
+    return novelStorage;
   }
 
   public static class Cors {
@@ -161,6 +166,53 @@ public class AppProperties {
 
     public void setCodeTtlMinutes(int codeTtlMinutes) {
       this.codeTtlMinutes = codeTtlMinutes;
+    }
+  }
+
+  public static class NovelStorage {
+    private final Github github = new Github();
+
+    public Github getGithub() {
+      return github;
+    }
+  }
+
+  public static class Github {
+    private String repository = "";
+    private String branch = "main";
+    private String basePath = "novels";
+    private String token = "";
+
+    public String getRepository() {
+      return repository;
+    }
+
+    public void setRepository(String repository) {
+      this.repository = repository;
+    }
+
+    public String getBranch() {
+      return branch;
+    }
+
+    public void setBranch(String branch) {
+      this.branch = branch;
+    }
+
+    public String getBasePath() {
+      return basePath;
+    }
+
+    public void setBasePath(String basePath) {
+      this.basePath = basePath;
+    }
+
+    public String getToken() {
+      return token;
+    }
+
+    public void setToken(String token) {
+      this.token = token;
     }
   }
 }
