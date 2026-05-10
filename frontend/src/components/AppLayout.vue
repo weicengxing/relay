@@ -442,7 +442,7 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
 
             <section class="guide-section">
               <h3>四、Claude Code 配置</h3>
-              <p>Claude Code 使用 Claude 风格接口，把下面的配置复制到终端后执行即可。(目前只支持小米模型，而且小米模型使用暂不扣费，后续会开放更多模型哦)</p>
+              <p>Claude Code 使用 Claude 风格接口，把下面的配置复制到终端后执行即可。Claude Code安装方法npm install -g @anthropic-ai/claude-code(目前只支持小米模型，而且小米模型使用暂不扣费，后续会开放更多模型哦)</p>
               <div class="guide-callout warning">
                 <strong>Claude Code 地址格式</strong>
                 <code>https://api.relaywei.ccwu.cc/v1</code>
