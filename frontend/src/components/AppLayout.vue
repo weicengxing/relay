@@ -12,13 +12,43 @@ const announcements = ref([]);
 const announcementBadge = ref(0);
 const announcementUnread = ref(0);
 const announcementOpen = ref(false);
+const newbieGuideOpen = ref(false);
+const guideCopyStatus = ref('');
 const announcementLoading = ref(false);
 const announcementError = ref('');
 let stopBalanceStream = null;
 let balanceRetryTimer = null;
+let guideCopyTimer = null;
 let disposed = false;
 
 const displayBadge = computed(() => (announcementBadge.value > 99 ? '99+' : String(announcementBadge.value)));
+const guideSnippets = {
+  codexConfig: `model_provider = "relay"
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+
+[model_providers]
+[model_providers.relay]
+name = "Relay"
+requires_openai_auth = true
+base_url = "https://api.relaywei.ccwu.cc/v1"
+wire_api = "responses"`,
+  codexAuth: `{
+  "OPENAI_API_KEY": "relay_xxxxxxxxxxxxxxxx"
+}`,
+  claudeWindows: `$env:ANTHROPIC_BASE_URL="https://api.relaywei.ccwu.cc/v1"
+$env:ANTHROPIC_AUTH_TOKEN="relay_xxxxxxxxxxxxxxxx"
+$env:ANTHROPIC_MODEL="mimo-v2.5-pro"
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL="mimo-v2.5-pro"
+$env:ANTHROPIC_DEFAULT_OPUS_MODEL="mimo-v2.5-pro"
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL="mimo-v2.5-pro"`,
+  claudeUnix: `export ANTHROPIC_BASE_URL="https://api.relaywei.ccwu.cc/v1"
+export ANTHROPIC_AUTH_TOKEN="relay_xxxxxxxxxxxxxxxx"
+export ANTHROPIC_MODEL="mimo-v2.5-pro"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="mimo-v2.5-pro"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="mimo-v2.5-pro"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="mimo-v2.5-pro"`,
+};
 
 function handleLogout() {
   auth.logout();
@@ -137,6 +167,47 @@ function closeAnnouncement() {
   announcementOpen.value = false;
 }
 
+function openNewbieGuide() {
+  newbieGuideOpen.value = true;
+}
+
+function closeNewbieGuide() {
+  newbieGuideOpen.value = false;
+}
+
+async function copyGuideSnippet(key, text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      copyGuideSnippetFallback(text);
+    }
+    guideCopyStatus.value = key;
+    if (guideCopyTimer) {
+      clearTimeout(guideCopyTimer);
+    }
+    guideCopyTimer = setTimeout(() => {
+      guideCopyStatus.value = '';
+      guideCopyTimer = null;
+    }, 1600);
+  } catch (error) {
+    copyGuideSnippetFallback(text);
+    guideCopyStatus.value = key;
+  }
+}
+
+function copyGuideSnippetFallback(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
+
 function formatAnnouncementTime(value) {
   if (!value) return '';
   try {
@@ -161,6 +232,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true;
   clearBalanceRetry();
+  if (guideCopyTimer) {
+    clearTimeout(guideCopyTimer);
+    guideCopyTimer = null;
+  }
   if (stopBalanceStream) {
     stopBalanceStream();
     stopBalanceStream = null;
@@ -232,6 +307,14 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
 
     <main class="main">
       <div class="top-actions">
+        <span class="guide-tip">新手请看这个😚</span>
+        <button class="guide-btn" @click="openNewbieGuide" title="新手告示" aria-label="新手告示">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+        </button>
         <button class="announcement-btn" @click="handleAnnouncementClick" title="公告" aria-label="公告">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/>
@@ -274,6 +357,155 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
               </div>
               <p>{{ item.content }}</p>
             </article>
+          </div>
+        </section>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="newbieGuideOpen" class="announcement-backdrop" @click.self="closeNewbieGuide">
+        <section class="guide-modal" role="dialog" aria-modal="true" aria-label="新手配置教程">
+          <header class="announcement-header">
+            <div>
+              <h2>新手配置教程</h2>
+              <span class="announcement-count">把本站 API Key 配到 Codex 或 Claude Code</span>
+            </div>
+            <button class="modal-close" @click="closeNewbieGuide" title="关闭" aria-label="关闭">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+              </svg>
+            </button>
+          </header>
+
+          <div class="guide-body">
+            <section class="guide-section guide-highlight">
+              <h3>先准备两样东西</h3>
+              <p>你不需要部署项目，只需要使用本站提供的中转服务。</p>
+              <ul>
+                <li>中转站地址，即 <code>https://api.relaywei.ccwu.cc/v1</code></li>
+                <li>在本站后台生成的 API Key，例如 <code>relay_xxxxxxxxxxxxxxxx</code></li>
+              </ul>
+              <p>这里的 API Key 是本站生成的用户 Key，不是 OpenAI 官方 Key，也不是 Claude 官方 Key。</p>
+            </section>
+
+            <section class="guide-section">
+              <h3>一、Codex CLI 配置</h3>
+              <p>Codex 使用 OpenAI 兼容接口，所以 Base URL 必须带 <code>/v1</code>。</p>
+              <div class="guide-callout">
+                <strong>Codex 地址格式</strong>
+                <code>https://api.relaywei.ccwu.cc/v1</code>
+              </div>
+              <ol>
+                <li>安装 Node.js LTS 版本。</li>
+                <li>打开终端，执行 <code>npm install -g @openai/codex</code>。</li>
+                <li>执行 <code>codex --version</code>，能看到版本号就是安装成功。</li>
+                <li>打开 Codex 配置文件：Windows 通常在 <code>C:\Users\你的用户名\.codex\config.toml</code>，macOS / Linux 通常在 <code>~/.codex/config.toml,你可以直接完整替换成下面这份</code>。</li>
+              </ol>
+              <div class="guide-code-block">
+                <button class="copy-code-btn" @click="copyGuideSnippet('codexConfig', guideSnippets.codexConfig)" title="复制" aria-label="复制">
+                  <svg v-if="guideCopyStatus !== 'codexConfig'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                </button>
+                <pre><code>{{ guideSnippets.codexConfig }}</code></pre>
+              </div>
+            </section>
+
+            <section class="guide-section">
+              <h3>二、Codex API Key 设置</h3>
+              <p>配置完config.toml后，我们接下来配置auth.json，它和config.toml在同一个父目录下，你可以替换成下面这份，但是要更改成你生成的那一份token</p>
+              <div class="guide-code-block">
+                <button class="copy-code-btn" @click="copyGuideSnippet('codexAuth', guideSnippets.codexAuth)" title="复制" aria-label="复制">
+                  <svg v-if="guideCopyStatus !== 'codexAuth'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                </button>
+                <pre><code>{{ guideSnippets.codexAuth }}</code></pre>
+              </div>
+              <p>配置完成后，在终端执行 <code>codex</code>，随便问一句。如果能正常回复，说明已经配置成功。</p>
+            </section>
+
+            <section class="guide-section">
+              <h3>三、Codex 桌面 App / IDE 插件</h3>
+              <p>如果你使用桌面 App 或 VS Code 插件，配置方法和上述一样，也是配置那两个文件</p>
+              
+            </section>
+
+            <section class="guide-section">
+              <h3>四、Claude Code 配置</h3>
+              <p>Claude Code 使用 Claude 风格接口，把下面的配置复制到终端后执行即可。(目前只支持小米模型，而且小米模型使用暂不扣费，后续会开放更多模型哦)</p>
+              <div class="guide-callout warning">
+                <strong>Claude Code 地址格式</strong>
+                <code>https://api.relaywei.ccwu.cc/v1</code>
+              </div>
+              <div class="guide-two-col">
+                <div>
+                  <strong>Windows PowerShell</strong>
+                  <div class="guide-code-block">
+                    <button class="copy-code-btn" @click="copyGuideSnippet('claudeWindows', guideSnippets.claudeWindows)" title="复制" aria-label="复制">
+                      <svg v-if="guideCopyStatus !== 'claudeWindows'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 6 9 17l-5-5"/>
+                      </svg>
+                    </button>
+                    <pre><code>{{ guideSnippets.claudeWindows }}</code></pre>
+                  </div>
+                </div>
+                <div>
+                  <strong>macOS / Linux</strong>
+                  <div class="guide-code-block">
+                    <button class="copy-code-btn" @click="copyGuideSnippet('claudeUnix', guideSnippets.claudeUnix)" title="复制" aria-label="复制">
+                      <svg v-if="guideCopyStatus !== 'claudeUnix'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 6 9 17l-5-5"/>
+                      </svg>
+                    </button>
+                    <pre><code>{{ guideSnippets.claudeUnix }}</code></pre>
+                  </div>
+                </div>
+              </div>
+              <p>然后执行 <code>claude</code> 启动 Claude Code。</p>
+            </section>
+
+            <section class="guide-section">
+              <h3>五、常见问题</h3>
+              <table>
+                <tbody>
+                  <tr>
+                    <th>401 / Unauthorized</th>
+                    <td>通常是 API Key 填错、复制少了字符，或者 Key 已被删除。</td>
+                  </tr>
+                  <tr>
+                    <th>404 / Not Found</th>
+                    <td>通常是 Base URL 写错。请按教程填写 <code>https://api.relaywei.ccwu.cc/v1</code>。</td>
+                  </tr>
+                  <tr>
+                    <th>model not found</th>
+                    <td>模型名不在本站支持列表里，请到模型目录查看可用模型。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="guide-section guide-summary">
+              <h3>最后记住这一句</h3>
+              <p><strong>Codex和Claude Code的base_url都填 <code>https://api.relaywei.ccwu.cc/v1</code></strong>，token就填本站生成的</p>
+            </section>
           </div>
         </section>
       </div>
@@ -475,9 +707,19 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 10px;
   margin-bottom: 8px;
 }
 
+.guide-tip {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.guide-btn,
 .announcement-btn {
   width: 38px;
   height: 38px;
@@ -494,6 +736,7 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
   transition: all var(--duration) var(--ease);
 }
 
+.guide-btn:hover,
 .announcement-btn:hover {
   color: var(--primary);
   border-color: rgba(99, 102, 241, 0.18);
@@ -531,6 +774,18 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
 .announcement-modal {
   width: min(460px, calc(100vw - 32px));
   max-height: min(680px, calc(100vh - 96px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 96px));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -639,6 +894,173 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
   word-break: break-word;
 }
 
+.guide-body {
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.guide-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+}
+
+.guide-section h3 {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.guide-section p,
+.guide-section li,
+.guide-section td,
+.guide-section th {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.guide-section p + p {
+  margin-top: 8px;
+}
+
+.guide-section ul,
+.guide-section ol {
+  padding-left: 20px;
+  margin: 8px 0 0;
+}
+
+.guide-section li + li {
+  margin-top: 5px;
+}
+
+.guide-section code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(17, 24, 39, 0.06);
+  color: #111827;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.guide-section pre {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #111827;
+  overflow: auto;
+}
+
+.guide-section pre code {
+  padding: 0;
+  background: transparent;
+  color: #f9fafb;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.guide-code-block {
+  position: relative;
+  margin-top: 10px;
+}
+
+.guide-code-block pre {
+  margin-top: 0;
+  padding-right: 46px;
+}
+
+.copy-code-btn {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.copy-code-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.guide-highlight {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(20, 184, 166, 0.08));
+  border-color: rgba(99, 102, 241, 0.16);
+}
+
+.guide-callout {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  background: var(--primary-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-callout.warning {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.guide-callout strong,
+.guide-two-col strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.guide-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.guide-section table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.guide-section th,
+.guide-section td {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.guide-section th {
+  width: 160px;
+  background: #fafbfd;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.guide-summary {
+  border-color: rgba(16, 185, 129, 0.18);
+  background: var(--success-soft);
+}
+
 @media (max-width: 760px) {
   .main {
     padding: 20px 18px 28px;
@@ -647,6 +1069,14 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
   .announcement-backdrop {
     justify-content: center;
     padding: 64px 16px 20px;
+  }
+
+  .guide-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-section th {
+    width: 112px;
   }
 }
 </style>

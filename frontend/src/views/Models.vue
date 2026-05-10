@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import * as api from '../api';
 import OpenAIIcon from '../components/OpenAIIcon.vue';
+import XiaomiIcon from '../components/XiaomiIcon.vue';
 
 const models = ref([]);
 const loading = ref(false);
@@ -24,6 +25,10 @@ onMounted(async () => {
 function price(value) {
   const number = Number(value || 0);
   return `$${number.toFixed(4)} / 1M Tokens`;
+}
+
+function isXiaomi(model) {
+  return String(model?.provider || '').toLowerCase() === 'xiaomi';
 }
 </script>
 
@@ -50,8 +55,9 @@ function price(value) {
     <div v-else class="grid">
       <article v-for="m in models" :key="m.id" class="model-card">
         <div class="model-top">
-          <div class="openai-badge">
-            <OpenAIIcon />
+          <div class="model-badge" :class="{ 'xiaomi-badge': isXiaomi(m) }">
+            <XiaomiIcon v-if="isXiaomi(m)" />
+            <OpenAIIcon v-else />
           </div>
 
           <div class="model-main">
@@ -135,7 +141,7 @@ function price(value) {
   align-items: flex-start;
 }
 
-.openai-badge {
+.model-badge {
   width: 52px;
   height: 52px;
   border-radius: 8px;
@@ -149,9 +155,20 @@ function price(value) {
   flex-shrink: 0;
 }
 
-.openai-badge svg {
+.model-badge svg {
   width: 31px;
   height: 31px;
+}
+
+.xiaomi-badge {
+  background: #ff6900;
+  border-color: rgba(255, 105, 0, 0.22);
+  box-shadow: 0 8px 18px rgba(255, 105, 0, 0.18);
+}
+
+.xiaomi-badge svg {
+  width: 52px;
+  height: 52px;
 }
 
 .model-main { min-width: 0; flex: 1; }

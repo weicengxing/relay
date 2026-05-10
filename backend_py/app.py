@@ -788,6 +788,11 @@ def github_require_config(repository: str, token: str, label: str) -> tuple[str,
     return owner, repo
 
 
+def github_is_configured(repository: str, token: str) -> bool:
+    owner, repo = github_repo_ref(repository)
+    return bool(owner and repo and (token or "").strip())
+
+
 def github_contents_url(repository: str, object_key: str, branch: str, include_ref: bool) -> str:
     owner, repo = github_repo_ref(repository)
     url = f"{GITHUB_API_BASE}/{owner}/{repo}/contents/{github_encode_path(object_key)}"
@@ -822,6 +827,50 @@ def github_read_json_file(repository: str, branch: str, token: str, object_key: 
     if encoded.strip():
         content = base64.b64decode(encoded).decode("utf-8")
     return {"content": content, "sha": payload.get("sha") or "", "size": len(content.encode("utf-8"))}
+
+
+def github_read_raw_file(content_url: str, token: str, label: str) -> str | None:
+    url = str(content_url or "").strip()
+    if not url:
+        return None
+    if not url.startswith("https://raw.githubusercontent.com/"):
+        raise AppError(500, "INTERNAL_ERROR", f"Invalid GitHub {label} raw URL")
+    headers = {"User-Agent": "relay-backend-local"}
+    if (token or "").strip():
+        headers["Authorization"] = f"Bearer {token.strip()}"
+    try:
+        with httpx.Client(timeout=60) as client:
+            response = client.get(url, headers=headers)
+    except Exception as exc:
+        raise AppError(500, "INTERNAL_ERROR", f"Unable to read {label} from GitHub raw URL: {exc}") from exc
+    if response.status_code == 404:
+        return None
+    if response.status_code < 200 or response.status_code >= 300:
+        raise AppError(
+            500,
+            "INTERNAL_ERROR",
+            f"Unable to read {label} from GitHub raw URL: {truncate(response.text, 1000)}",
+        )
+    return response.text
+
+
+def github_read_file_content(
+    repository: str,
+    branch: str,
+    token: str,
+    object_key: str,
+    label: str,
+    content_url: str = "",
+) -> str:
+    if github_is_configured(repository, token):
+        stored = github_read_json_file(repository, branch, token, object_key, label)
+        if stored is not None:
+            return str(stored.get("content") or "")
+    raw_content = github_read_raw_file(content_url, token, label)
+    if raw_content is not None:
+        return raw_content
+    github_require_config(repository, token, label)
+    raise AppError(404, "NOT_FOUND", f"GitHub {label} file not found")
 
 
 def github_write_file(
@@ -1830,23 +1879,20 @@ def store_novel_to_github(user_id: str, title: str, content: str) -> dict[str, A
     }
 
 
-def read_novel_from_github(object_key: str) -> str:
+def read_novel_from_github(object_key: str, content_url: str = "") -> str:
     if not object_key:
         raise AppError(500, "INTERNAL_ERROR", "Novel content object key is missing")
-    github_require_config(GITHUB_NOVEL_REPOSITORY, GITHUB_NOVEL_TOKEN, "novel")
-    raw_url = github_contents_url(GITHUB_NOVEL_REPOSITORY, object_key, GITHUB_NOVEL_BRANCH, True)
-    try:
-        with httpx.Client(timeout=60) as client:
-            raw_response = client.get(raw_url, headers=github_headers(GITHUB_NOVEL_TOKEN, "application/vnd.github.raw"))
-            if raw_response.status_code >= 200 and raw_response.status_code < 300:
-                return raw_response.text
-    except Exception:
-        raw_response = None
-    stored = github_read_json_file(GITHUB_NOVEL_REPOSITORY, GITHUB_NOVEL_BRANCH, GITHUB_NOVEL_TOKEN, object_key, "novel")
-    if not stored or not str(stored.get("content") or "").strip():
-        detail = "" if raw_response is None else truncate(raw_response.text, 1000)
-        raise AppError(500, "INTERNAL_ERROR", f"Unable to read novel from GitHub: {detail}".strip())
-    return str(stored["content"])
+    content = github_read_file_content(
+        GITHUB_NOVEL_REPOSITORY,
+        GITHUB_NOVEL_BRANCH,
+        GITHUB_NOVEL_TOKEN,
+        object_key,
+        "novel",
+        content_url,
+    )
+    if not content.strip():
+        raise AppError(500, "INTERNAL_ERROR", "GitHub returned empty novel content")
+    return content
 
 
 def avg_rating(row: sqlite3.Row) -> float:
@@ -1871,7 +1917,7 @@ def novel_full(row: sqlite3.Row, my_rating: int | None) -> dict[str, Any]:
     data = novel_summary(row, my_rating)
     data.update(
         {
-            "content": read_novel_from_github(row["content_object_key"]),
+            "content": read_novel_from_github(row["content_object_key"], row["content_url"]),
             "contentUrl": row["content_url"],
             "updatedAt": row["updated_at"],
         }
@@ -1973,14 +2019,15 @@ def chat_history_detail(turn_id: int, authorization: str | None = Header(default
         ).fetchone()
     if not row:
         raise AppError(404, "NOT_FOUND", "Chat history not found")
-    stored = github_read_json_file(
+    content = github_read_file_content(
         GITHUB_CHAT_HISTORY_REPOSITORY,
         GITHUB_CHAT_HISTORY_BRANCH,
         GITHUB_CHAT_HISTORY_TOKEN,
         row["object_key"],
         "chat history",
+        row["content_url"],
     )
-    return api_ok({"file": chat_history_file_response(row), "turns": parse_chat_history_turns((stored or {}).get("content") or "")})
+    return api_ok({"file": chat_history_file_response(row), "turns": parse_chat_history_turns(content)})
 
 
 def chat_history_file_response(row: sqlite3.Row) -> dict[str, Any]:
@@ -2117,15 +2164,19 @@ def append_web_chat_history(
         sequence = 1 if target is None else int(target["sequence"]) + 1
         target = create_chat_history_file(con, user_id, sequence)
 
-    stored = github_read_json_file(
-        GITHUB_CHAT_HISTORY_REPOSITORY,
-        GITHUB_CHAT_HISTORY_BRANCH,
-        GITHUB_CHAT_HISTORY_TOKEN,
-        target["object_key"],
-        "chat history",
-    )
-    current_content = (stored or {}).get("content") or ""
-    sha = (stored or {}).get("sha") or None
+    if github_is_configured(GITHUB_CHAT_HISTORY_REPOSITORY, GITHUB_CHAT_HISTORY_TOKEN):
+        stored = github_read_json_file(
+            GITHUB_CHAT_HISTORY_REPOSITORY,
+            GITHUB_CHAT_HISTORY_BRANCH,
+            GITHUB_CHAT_HISTORY_TOKEN,
+            target["object_key"],
+            "chat history",
+        )
+        current_content = (stored or {}).get("content") or ""
+        sha = (stored or {}).get("sha") or None
+    else:
+        current_content = github_read_raw_file(target["content_url"], GITHUB_CHAT_HISTORY_TOKEN, "chat history") or ""
+        sha = None
     if current_content and len(current_content.encode("utf-8")) + line_bytes > max_file_bytes:
         target = create_chat_history_file(con, user_id, int(target["sequence"]) + 1)
         current_content = ""
