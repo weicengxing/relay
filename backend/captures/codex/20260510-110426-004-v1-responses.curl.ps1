@@ -1,4 +1,4 @@
-$bodyPath = 'D:\relay\backend\captures\codex\latest-body.json'
+$bodyPath = 'D:\relay\backend\captures\codex\20260510-110426-004-v1-responses.body.json'
 curl.exe -N 'http://api.relaywei.ccwu.cc/v1/responses' `
   -H 'User-Agent: Codex Desktop/0.128.0-alpha.1 (Windows 10.0.19045; x86_64) unknown (Codex Desktop; 26.429.30905)' `
   -H 'Accept: text/event-stream' `

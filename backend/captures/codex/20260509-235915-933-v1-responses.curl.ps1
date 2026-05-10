@@ -1,0 +1,22 @@
+$bodyPath = 'D:\relay\backend\captures\codex\20260509-235915-933-v1-responses.body.json'
+curl.exe -N 'http://api.relaywei.ccwu.cc/v1/responses' `
+  -H 'User-Agent: Codex Desktop/0.128.0-alpha.1 (Windows 10.0.19045; x86_64) unknown (Codex Desktop; 26.429.30905)' `
+  -H 'Accept: text/event-stream' `
+  -H 'Accept-Encoding: gzip, br' `
+  -H 'Authorization: Bearer relay_6YeQcKIJ7uPavT5q5OyAph8SFTaxDcWcrys72DIf8zo' `
+  -H 'Cdn-Loop: cloudflare; loops=1' `
+  -H 'Cf-Connecting-Ip: 2001:da8:7001:2000::1:361c' `
+  -H 'Cf-Ipcountry: CN' `
+  -H 'Cf-Ray: 9f91e90afa350715-HKG' `
+  -H 'Cf-Visitor: {"scheme":"https"}' `
+  -H 'Cf-Warp-Tag-Id: 929132cd-2637-4154-a5d1-78aaa6b3466d' `
+  -H 'Content-Type: application/json' `
+  -H 'Originator: Codex Desktop' `
+  -H 'Session_id: 019e0d61-bef8-7180-a025-c2ca83574f6a' `
+  -H 'X-Client-Request-Id: 019e0d61-bef8-7180-a025-c2ca83574f6a' `
+  -H 'X-Codex-Beta-Features: terminal_resize_reflow' `
+  -H 'X-Codex-Turn-Metadata: {"session_id":"019e0d61-bef8-7180-a025-c2ca83574f6a","thread_source":"user","turn_id":"019e0d76-80c5-79f2-a906-2206e12e0304","workspaces":{"D:\\relay":{"associated_remote_urls":{"origin":"https://github.com/weicengxing/relay.git"},"latest_git_commit_hash":"2a2cf443dbca8d05712c3e7cfbd5e554a798d82e","has_changes":true}},"sandbox":"windows_elevated","turn_started_at_unix_ms":1778342330651}' `
+  -H 'X-Codex-Window-Id: 019e0d61-bef8-7180-a025-c2ca83574f6a:0' `
+  -H 'X-Forwarded-For: 2001:da8:7001:2000::1:361c' `
+  -H 'X-Forwarded-Proto: https' `
+  --data-binary "@$bodyPath"

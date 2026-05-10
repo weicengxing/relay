@@ -1,0 +1,22 @@
+$bodyPath = 'D:\relay\backend\captures\codex\20260510-000556-419-v1-responses.body.json'
+curl.exe -N 'http://api.relaywei.ccwu.cc/v1/responses' `
+  -H 'User-Agent: Codex Desktop/0.128.0-alpha.1 (Windows 10.0.19045; x86_64) unknown (Codex Desktop; 26.429.30905)' `
+  -H 'Accept: text/event-stream' `
+  -H 'Accept-Encoding: gzip, br' `
+  -H 'Authorization: Bearer relay_6YeQcKIJ7uPavT5q5OyAph8SFTaxDcWcrys72DIf8zo' `
+  -H 'Cdn-Loop: cloudflare; loops=1' `
+  -H 'Cf-Connecting-Ip: 57.183.3.147' `
+  -H 'Cf-Ipcountry: JP' `
+  -H 'Cf-Ray: 9f91f2d2393ed78d-NRT' `
+  -H 'Cf-Visitor: {"scheme":"https"}' `
+  -H 'Cf-Warp-Tag-Id: 929132cd-2637-4154-a5d1-78aaa6b3466d' `
+  -H 'Content-Type: application/json' `
+  -H 'Originator: Codex Desktop' `
+  -H 'Session_id: 019e0d78-4849-74e1-90a8-1ac1138acf65' `
+  -H 'X-Client-Request-Id: 019e0d78-4849-74e1-90a8-1ac1138acf65' `
+  -H 'X-Codex-Beta-Features: terminal_resize_reflow' `
+  -H 'X-Codex-Turn-Metadata: {"session_id":"019e0d78-4849-74e1-90a8-1ac1138acf65","thread_source":"user","turn_id":"019e0d7c-95f2-7e73-8bc9-4bffe9c30146","sandbox":"windows_elevated","turn_started_at_unix_ms":1778342729227}' `
+  -H 'X-Codex-Window-Id: 019e0d78-4849-74e1-90a8-1ac1138acf65:0' `
+  -H 'X-Forwarded-For: 57.183.3.147' `
+  -H 'X-Forwarded-Proto: https' `
+  --data-binary "@$bodyPath"
