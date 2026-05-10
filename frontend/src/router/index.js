@@ -26,6 +26,7 @@ const routes = [
       { path: 'models', name: 'Models', component: () => import('../views/Models.vue') },
       { path: 'novels', name: 'Novels', component: () => import('../views/Novels.vue') },
       { path: 'recharge', name: 'Recharge', component: () => import('../views/Recharge.vue') },
+      { path: 'admin-sqlite', name: 'AdminSqlite', component: () => import('../views/AdminSqlite.vue') },
     ],
   },
 ];

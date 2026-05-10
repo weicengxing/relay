@@ -3,23 +3,19 @@ import { ref, onMounted } from 'vue';
 import * as api from '../api';
 import OpenAIIcon from '../components/OpenAIIcon.vue';
 
-const fallbackModels = [
-  { id: 'gpt-5.5', name: 'GPT-5.5', provider: 'OpenAI', inputPrice: 5, outputPrice: 30, cachedInputPrice: 0.5, cacheCreationPrice: 5, tags: ['codex', 'gpt5', 'reasoning'] },
-  { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', inputPrice: 2.5, outputPrice: 15, cachedInputPrice: 0.25, cacheCreationPrice: 2.5, tags: ['codex', 'gpt-5', 'reasoning'] },
-  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'OpenAI', inputPrice: 1.75, outputPrice: 14, cachedInputPrice: 0.175, cacheCreationPrice: 1.75, tags: ['codex', 'gpt-5', 'coding'] },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', provider: 'OpenAI', inputPrice: 0.75, outputPrice: 4.5, cachedInputPrice: 0.075, cacheCreationPrice: 0.75, tags: ['codex', 'gpt-5', 'mini'] },
-];
-
 const models = ref([]);
 const loading = ref(false);
+const error = ref('');
 
 onMounted(async () => {
   loading.value = true;
+  error.value = '';
   try {
     const data = await api.getModels();
-    models.value = data?.length ? data : fallbackModels;
-  } catch {
-    models.value = fallbackModels;
+    models.value = data || [];
+  } catch (err) {
+    error.value = err.message || '模型目录加载失败';
+    models.value = [];
   } finally {
     loading.value = false;
   }
@@ -35,12 +31,20 @@ function price(value) {
   <div class="page">
     <header class="page-head">
       <h1>模型目录</h1>
-      <p>当前可用于中转服务的 OpenAI 模型与计费价格。</p>
+      <p>当前可用于中转服务的模型与计费价格。</p>
     </header>
 
     <div v-if="loading" class="empty">
       <div class="loader"></div>
       <span>加载中...</span>
+    </div>
+
+    <div v-else-if="error" class="empty">
+      <span>{{ error }}</span>
+    </div>
+
+    <div v-else-if="!models.length" class="empty">
+      <span>暂无可用模型</span>
     </div>
 
     <div v-else class="grid">

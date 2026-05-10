@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081/api').replace(/\/$/, '');
 
 function getToken() {
   return localStorage.getItem('token');
@@ -340,5 +340,55 @@ export function rateNovel(id, score) {
   return request(`/novels/${id}/ratings`, {
     method: 'POST',
     body: JSON.stringify({ score }),
+  });
+}
+
+export function getAdminTables() {
+  return request('/admin/sqlite/tables');
+}
+
+export function getAdminMaintenance() {
+  return request('/admin/maintenance');
+}
+
+export function setAdminMaintenance(writeDisabled) {
+  return request('/admin/maintenance', {
+    method: 'PUT',
+    body: JSON.stringify({ writeDisabled }),
+  });
+}
+
+export function getAdminTableRows(table, { limit = 100, offset = 0 } = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return request(`/admin/sqlite/tables/${encodeURIComponent(table)}/rows?${params.toString()}`);
+}
+
+export function createAdminRow(table, values) {
+  return request(`/admin/sqlite/tables/${encodeURIComponent(table)}/rows`, {
+    method: 'POST',
+    body: JSON.stringify({ values }),
+  });
+}
+
+export function updateAdminRow(table, rowid, values) {
+  return request(`/admin/sqlite/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(rowid)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ values }),
+  });
+}
+
+export function deleteAdminRow(table, rowid) {
+  return request(`/admin/sqlite/tables/${encodeURIComponent(table)}/rows/${encodeURIComponent(rowid)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function executeAdminSql(sql) {
+  return request('/admin/sqlite/sql', {
+    method: 'POST',
+    body: JSON.stringify({ sql }),
   });
 }
