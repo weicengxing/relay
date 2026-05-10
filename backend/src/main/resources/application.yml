@@ -2,13 +2,13 @@ spring:
   application:
     name: relay-backend
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
-    username: ${DATABASE_USERNAME:postgres.klrcrezuwvzdcgjictlm}
-    password: ${DATABASE_PASSWORD:ZHang268115!}
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
-      url: ${REDIS_URL:rediss://default:gQAAAAAAAUiYAAIgcDFlNjgxYmQwZjYyMTk0YWUyOWJiMDgzNGRlMzdlYjQ0Ng@aware-corgi-84120.upstash.io:6379}
+      url: ${REDIS_URL}
   mvc:
     async:
       request-timeout: 10m
