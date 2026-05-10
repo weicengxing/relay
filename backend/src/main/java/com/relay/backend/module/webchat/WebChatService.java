@@ -430,6 +430,7 @@ public class WebChatService {
     String assistantMessageId = null;
     String topicId = null;
     String resumeToken = null;
+    boolean streamHandoff = false;
     try (BufferedReader reader =
         new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
       String line;
@@ -450,6 +451,8 @@ public class WebChatService {
         if ("resume_conversation_token".equals(type)) {
           resumeToken = firstNonBlank(textAt(event, "token"), resumeToken);
           topicId = firstNonBlank(topicIdFromResumeToken(resumeToken), topicId);
+        } else if ("stream_handoff".equals(type)) {
+          streamHandoff = true;
         }
         String eventConversationId = textAt(event, "conversation_id");
         if (eventConversationId != null && !eventConversationId.isBlank()) {
@@ -474,10 +477,16 @@ public class WebChatService {
     if (topicId == null || topicId.isBlank()) {
       topicId = topicIdFromResumeToken(resumeToken);
     }
-    if ((answer == null || answer.isBlank()) && topicId != null && !topicId.isBlank()) {
-      WsTurnResult wsResult = readHandoffTopic(config, topicId, resultConversationId, streamSink);
-      answer = firstNonBlank(wsResult.answer(), answer);
-      assistantMessageId = firstNonBlank(wsResult.assistantMessageId(), assistantMessageId);
+    if (streamHandoff && topicId != null && !topicId.isBlank()) {
+      try {
+        WsTurnResult wsResult = readHandoffTopic(config, topicId, resultConversationId, answer, streamSink);
+        answer = mergeFullText(answer, wsResult.answer());
+        assistantMessageId = firstNonBlank(wsResult.assistantMessageId(), assistantMessageId);
+      } catch (AppException exception) {
+        if (answer == null || answer.isBlank()) {
+          throw exception;
+        }
+      }
     }
 
     return new TurnResult(answer, resultConversationId, assistantMessageId);
@@ -533,18 +542,20 @@ public class WebChatService {
   }
 
   private WsTurnResult readHandoffTopic(
-      WebChatModelConfig config, String topicId, String conversationId, StreamSink streamSink) {
+      WebChatModelConfig config,
+      String topicId,
+      String conversationId,
+      String initialAnswer,
+      StreamSink streamSink) {
     String wsUrl = fetchWebsocketUrl(config, conversationId);
-    TopicWebSocketListener listener = new TopicWebSocketListener(topicId, streamSink);
+    TopicWebSocketListener listener = new TopicWebSocketListener(topicId, initialAnswer, streamSink);
     try {
-      WebSocket webSocket =
+      WebSocket.Builder builder =
           httpClient
               .newWebSocketBuilder()
-              .header("Origin", trimTrailingSlash(firstNonBlank(config.baseUrl(), "https://chatgpt.com")))
-              .header("User-Agent", firstNonBlank(config.userAgent(), DEFAULT_USER_AGENT))
-              .connectTimeout(Duration.ofSeconds(30))
-              .buildAsync(URI.create(wsUrl), listener)
-              .get(30, TimeUnit.SECONDS);
+              .connectTimeout(Duration.ofSeconds(30));
+      applyWebSocketHeaders(builder, config);
+      WebSocket webSocket = builder.buildAsync(URI.create(wsUrl), listener).get(30, TimeUnit.SECONDS);
       webSocket.sendText(writeJson(websocketSubscribeFrame(topicId)), true).join();
       WsTurnResult result = listener.result().get(180, TimeUnit.SECONDS);
       webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "done");
@@ -597,6 +608,24 @@ public class WebChatService {
         Map.of("id", 2, "command", Map.of("type", "subscribe", "topic_id", "conversations")),
         Map.of("id", 3, "command", Map.of("type", "subscribe", "topic_id", "app_notifications")),
         Map.of("id", 4, "command", Map.of("type", "subscribe", "topic_id", topicId)));
+  }
+
+  private void applyWebSocketHeaders(WebSocket.Builder builder, WebChatModelConfig config) {
+    String origin = trimTrailingSlash(firstNonBlank(config.baseUrl(), "https://chatgpt.com"));
+    putHeaderIfPresent(builder, "Origin", origin);
+    putHeaderIfPresent(builder, "User-Agent", firstNonBlank(config.userAgent(), DEFAULT_USER_AGENT));
+    putHeaderIfPresent(builder, "Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+    putHeaderIfPresent(builder, "Authorization", authorization(config));
+    putHeaderIfPresent(builder, "chatgpt-account-id", config.accountId());
+    putHeaderIfPresent(builder, "Cookie", config.cookie());
+    putHeaderIfPresent(
+        builder, "oai-client-build-number", firstNonBlank(config.oaiClientBuildNumber(), DEFAULT_OAI_CLIENT_BUILD_NUMBER));
+    putHeaderIfPresent(
+        builder, "oai-client-version", firstNonBlank(config.oaiClientVersion(), DEFAULT_OAI_CLIENT_VERSION));
+    putHeaderIfPresent(builder, "oai-device-id", config.oaiDeviceId());
+    putHeaderIfPresent(builder, "oai-session-id", config.oaiSessionId());
+    putHeaderIfPresent(builder, "openai-sentinel-chat-requirements-token", config.sentinelToken());
+    putHeaderIfPresent(builder, "x-oai-is", config.oaiIs());
   }
 
   private Map<String, Object> conversationPayload(
@@ -749,6 +778,12 @@ public class WebChatService {
   }
 
   private void putHeaderIfPresent(HttpRequest.Builder builder, String name, String value) {
+    if (value != null && !value.isBlank() && !value.startsWith("PASTE_")) {
+      builder.header(name, value.trim());
+    }
+  }
+
+  private void putHeaderIfPresent(WebSocket.Builder builder, String name, String value) {
     if (value != null && !value.isBlank() && !value.startsWith("PASTE_")) {
       builder.header(name, value.trim());
     }
@@ -1241,11 +1276,12 @@ public class WebChatService {
     private final StreamSink streamSink;
     private final CompletableFuture<WsTurnResult> result = new CompletableFuture<>();
     private final StringBuilder message = new StringBuilder();
-    private String answer = "";
+    private String answer;
     private String assistantMessageId = null;
 
-    private TopicWebSocketListener(String topicId, StreamSink streamSink) {
+    private TopicWebSocketListener(String topicId, String initialAnswer, StreamSink streamSink) {
       this.topicId = topicId;
+      this.answer = initialAnswer == null ? "" : initialAnswer;
       this.streamSink = streamSink;
     }
 

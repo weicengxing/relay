@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import * as api from '../api';
 import OpenAIIcon from '../components/OpenAIIcon.vue';
 
@@ -54,10 +54,11 @@ async function sendMessage() {
   input.value = '';
   const outgoingImages = imageAttachments.value;
   imageAttachments.value = [];
+  const shouldStartNewConversation = newConversation.value || messages.value.length === 0;
   error.value = '';
   loading.value = true;
   messages.value.push({ role: 'user', content, images: outgoingImages });
-  const assistant = { role: 'assistant', content: '', pending: true };
+  const assistant = reactive({ role: 'assistant', content: '', pending: true, streaming: true });
   const streamWriter = createStreamWriter(assistant);
   messages.value.push(assistant);
   await scrollToBottom();
@@ -73,7 +74,7 @@ async function sendMessage() {
         width: image.width,
         height: image.height,
       })),
-      newConversation: newConversation.value,
+      newConversation: shouldStartNewConversation,
     };
     const result = await api.streamWebChatMessage(streamPayload, {
       onDelta(delta) {
@@ -85,6 +86,7 @@ async function sendMessage() {
     });
     await streamWriter.finish();
     assistant.content = assistant.content || result?.answer || '模型没有返回文本。';
+    assistant.streaming = false;
     assistant.pending = false;
     if (result) {
       session.value = {
@@ -99,6 +101,7 @@ async function sendMessage() {
     newConversation.value = false;
   } catch (err) {
     streamWriter.cancel();
+    assistant.streaming = false;
     assistant.pending = false;
     assistant.error = true;
     assistant.content = `请求失败：${err.message || '发送失败'}`;
@@ -135,6 +138,7 @@ function createStreamWriter(message) {
 
     const chunkSize = queue.length > 240 ? 10 : queue.length > 80 ? 7 : 4;
     message.pending = false;
+    message.streaming = true;
     message.content += queue.slice(0, chunkSize);
     queue = queue.slice(chunkSize);
     scrollToBottom();
@@ -146,11 +150,13 @@ function createStreamWriter(message) {
       if (!delta) return;
       queue += delta;
       message.pending = false;
+      message.streaming = true;
       schedule();
     },
     replace(text) {
       queue = '';
       message.pending = false;
+      message.streaming = false;
       message.content = text || '';
       scrollToBottom();
       resolveIdle();
@@ -168,6 +174,7 @@ function createStreamWriter(message) {
       }
       frame = null;
       queue = '';
+      message.streaming = false;
       resolveIdle();
     },
   };
