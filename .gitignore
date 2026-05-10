@@ -24,3 +24,6 @@ build/
 .env
 .env.local
 .env.*.local
+
+# Local reference snapshots
+_reference_relay_old/
