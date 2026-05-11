@@ -1,32 +1,67 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import * as api from '../api';
 import { useAuthStore } from '../stores/auth';
 
 const auth = useAuthStore();
 const amount = ref('');
-const remark = ref('');
 const redeemCode = ref('');
 const loading = ref(false);
 const redeeming = ref(false);
 const success = ref(false);
 const error = ref('');
 const redeemSuccess = ref('');
+const showPaymentModal = ref(false);
+const paymentRemarkCopied = ref(false);
+const paymentImages = ref({ alipayQrImage: '', wechatQrImage: '' });
 const presets = [10, 50, 100];
+const paymentRemark = computed(() => auth.email || '');
+
+onMounted(async () => {
+  try {
+    const bootstrap = await api.getBootstrap();
+    paymentImages.value = bootstrap?.rechargePayment || paymentImages.value;
+  } catch (e) {
+    paymentImages.value = { alipayQrImage: '', wechatQrImage: '' };
+  }
+});
 
 async function handleSubmit() {
   error.value = '';
   const val = parseFloat(amount.value);
   if (!val || val <= 0) { error.value = '请输入有效的充值金额'; return; }
+  if (!paymentRemark.value) {
+    error.value = '无法获取当前账号邮箱，请重新登录后再充值';
+    return;
+  }
   loading.value = true;
   try {
-    await api.createRecharge(val, remark.value);
-    success.value = true;
-    amount.value = '';
-    remark.value = '';
+    await api.createRecharge(val, paymentRemark.value);
+    showPaymentModal.value = true;
   } catch (e) {
     error.value = e.message || '充值失败';
   } finally { loading.value = false; }
+}
+
+function closePaymentModal() {
+  showPaymentModal.value = false;
+  paymentRemarkCopied.value = false;
+  success.value = true;
+  amount.value = '';
+}
+
+async function copyPaymentRemark() {
+  const value = paymentRemark.value.trim();
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    paymentRemarkCopied.value = true;
+    window.setTimeout(() => {
+      paymentRemarkCopied.value = false;
+    }, 1500);
+  } catch (e) {
+    paymentRemarkCopied.value = false;
+  }
 }
 
 async function handleRedeem() {
@@ -110,14 +145,9 @@ async function handleRedeem() {
               </div>
             </label>
 
-            <label class="field">
-              <span class="field-label">备注（可选）</span>
-              <input v-model="remark" placeholder="添加备注" class="text-input" />
-            </label>
-
             <button type="submit" class="btn-submit" :disabled="loading">
               <span v-if="loading" class="spin"></span>
-              {{ loading ? '提交中...' : '提交充值' }}
+              {{ loading ? '提交中...' : '充值' }}
             </button>
           </form>
         </transition>
@@ -135,6 +165,48 @@ async function handleRedeem() {
           <li>1元人民币可兑换10$</li>
           <li>如果服务您不满意，可以联系管理员申请退款 😊🌸</li>
         </ul>
+      </div>
+    </div>
+
+    <div v-if="showPaymentModal" class="modal-backdrop" @click.self="closePaymentModal">
+      <div class="payment-modal" role="dialog" aria-modal="true" aria-label="充值收款码">
+        <div class="modal-head">
+          <div>
+            <h2>扫码完成充值</h2>
+            <p>请支付 ¥{{ Number(amount || 0).toFixed(2) }}。付款备注必须填写下方邮箱。</p>
+          </div>
+          <button type="button" class="modal-close" aria-label="关闭" @click="closePaymentModal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="payment-remark">
+          <div>
+            <span>微信/支付宝付款时，请在备注里填写</span>
+            <strong>{{ paymentRemark }}</strong>
+          </div>
+          <button type="button" class="copy-btn" @click="copyPaymentRemark">
+            {{ paymentRemarkCopied ? '已复制' : '复制' }}
+          </button>
+        </div>
+
+        <div class="qr-grid">
+          <div class="qr-card">
+            <h3>支付宝</h3>
+            <img v-if="paymentImages.alipayQrImage" :src="paymentImages.alipayQrImage" alt="支付宝收款码" />
+            <div v-else class="qr-empty">请在 app_settings 配置 recharge.alipay_qr_image</div>
+          </div>
+          <div class="qr-card">
+            <h3>微信</h3>
+            <img v-if="paymentImages.wechatQrImage" :src="paymentImages.wechatQrImage" alt="微信收款码" />
+            <div v-else class="qr-empty">请在 app_settings 配置 recharge.wechat_qr_image</div>
+          </div>
+        </div>
+
+        <p class="modal-note">不要留空，也不要填写昵称。没有这个备注，管理员无法判断是哪一个账户付款。</p>
       </div>
     </div>
   </div>
@@ -399,7 +471,155 @@ async function handleRedeem() {
   opacity: 0.4;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.payment-modal {
+  width: min(680px, 100%);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.26);
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.modal-head h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.modal-head p,
+.modal-note {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+
+.modal-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.payment-remark {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 2px solid rgba(245, 158, 11, 0.55);
+  border-radius: var(--radius-sm);
+  background: #fff7ed;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+}
+
+.payment-remark span {
+  display: block;
+  margin-bottom: 6px;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.payment-remark strong {
+  display: block;
+  color: #7c2d12;
+  font-size: 18px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.copy-btn {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(234, 88, 12, 0.35);
+  border-radius: var(--radius-sm);
+  background: #ea580c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.copy-btn:hover {
+  background: #c2410c;
+}
+
+.qr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.qr-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  text-align: center;
+}
+
+.qr-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.qr-card img {
+  width: 100%;
+  max-width: 240px;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.qr-empty {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 768px) {
   .layout { grid-template-columns: 1fr; }
+  .qr-grid { grid-template-columns: 1fr; }
 }
 </style>

@@ -1,0 +1,2 @@
+event: done
+data: {"answer": "", "conversationId": "6a014c28-c52c-8328-9fd6-f601c0eb2afa", "parentMessageId": "9c9e3cdd-3c69-4820-8bd0-a45fa1a8c118", "model": "gpt-4o", "configId": 2, "configName": "account_2"}

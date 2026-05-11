@@ -8,6 +8,7 @@ const selected = ref(null);
 const turns = ref([]);
 const page = ref(1);
 const size = 20;
+const sourcePreviewLimit = 15;
 const total = ref(0);
 const hasMore = ref(false);
 const loading = ref(false);
@@ -79,6 +80,22 @@ function formatSize(bytes) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function imageUrl(image = {}) {
+  return api.resolveApiUrl(image.data || image.url || image.previewUrl || '');
+}
+
+function imageLink(image = {}) {
+  return image.pageUrl || imageUrl(image);
+}
+
+function visibleSources(sources = [], expanded = false) {
+  return expanded ? sources : sources.slice(0, sourcePreviewLimit);
+}
+
+function hasHiddenSources(sources = [], expanded = false) {
+  return !expanded && sources.length > sourcePreviewLimit;
 }
 
 function renderMessageContent(content = '') {
@@ -352,12 +369,18 @@ onMounted(() => loadHistory());
           <div class="message user">
             <div class="bubble">
               <div v-if="turn.images?.length" class="images">
-                <img
+                <a
                   v-for="(image, imageIndex) in turn.images"
                   :key="imageIndex"
-                  :src="image.data"
-                  :alt="image.name || 'image'"
-                />
+                  :href="imageLink(image)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    :src="imageUrl(image)"
+                    :alt="image.name || 'image'"
+                  />
+                </a>
               </div>
               <div class="rendered-content user-rendered" v-html="renderMessageContent(turn.userMessage || '（仅图片消息）')"></div>
             </div>
@@ -365,7 +388,45 @@ onMounted(() => loadHistory());
 
           <div class="message assistant">
             <span class="avatar"><OpenAIIcon /></span>
-            <div class="bubble rendered-content" v-html="renderMessageContent(turn.assistantAnswer || '模型没有返回文本。')"></div>
+            <div class="bubble">
+              <div v-if="turn.assistantImages?.length" class="images">
+                <a
+                  v-for="(image, imageIndex) in turn.assistantImages"
+                  :key="image.id || imageIndex"
+                  :href="imageLink(image)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    :src="imageUrl(image)"
+                    :alt="image.name || 'image'"
+                  />
+                </a>
+              </div>
+              <div class="rendered-content" v-html="renderMessageContent(turn.assistantAnswer || '模型没有返回文本。')"></div>
+              <div v-if="turn.assistantSources?.length" class="sources">
+                <a
+                  v-for="source in visibleSources(turn.assistantSources, turn.sourcesExpanded)"
+                  :key="source.url"
+                  :href="source.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :title="source.snippet || source.title"
+                >
+                  <span>{{ source.attribution || source.title || source.url }}</span>
+                </a>
+                <button
+                  v-if="hasHiddenSources(turn.assistantSources, turn.sourcesExpanded)"
+                  type="button"
+                  class="source-more"
+                  title="显示全部来源"
+                  aria-label="显示全部来源"
+                  @click="turn.sourcesExpanded = true"
+                >
+                  ...
+                </button>
+              </div>
+            </div>
           </div>
         </article>
       </div>
@@ -745,12 +806,57 @@ onMounted(() => loadHistory());
   gap: 8px;
 }
 
+.images a {
+  display: block;
+  min-width: 0;
+}
+
 .images img {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sources {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sources a,
+.source-more {
+  max-width: 220px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #f7f7f8;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.source-more {
+  cursor: pointer;
+  font-weight: 700;
+  min-width: 34px;
+}
+
+.sources a:hover,
+.source-more:hover {
+  background: #f1f1f1;
+  color: #202123;
+}
+
+.sources span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .state,

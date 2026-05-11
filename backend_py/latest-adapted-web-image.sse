@@ -1,0 +1,18 @@
+event: delta
+data: {"delta": "Here’s a **direct, publicly accessible NASA nebula image URL**"}
+event: delta
+data: {"delta": " you requested (no AI‑generated image):\n\n**Orion Neb"}
+event: delta
+data: {"delta": "ula (Hubble Telescope) — 1280×720 JPG**  \n➡️ https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-"}
+event: delta
+data: {"delta": "1280.jpg  \nThis image shows the star‑forming Orion Nebula captured by *NASA’s Hubble Space Telescope*. citeturn1search2\n\n"}
+event: delta
+data: {"delta": "You can open that URL directly in your browser to view the nebula photo."}
+event: image
+data: {"id": "xUElUS2aVkhuPCBX", "name": "c-1280.jpg", "mediaType": "image/jpeg", "url": "https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-1280.jpg", "pageUrl": "https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-1280.jpg", "source": "web"}
+event: image
+data: {"id": "SWijQhdPPHVO6RfV", "name": "Uncovering the Veil (Nebula) - NASA", "mediaType": "", "url": "https://www.nasa.gov/wp-content/uploads/2023/03/659202main_veil_full.jpg", "pageUrl": "https://www.nasa.gov/image-article/uncovering-veil-nebula/", "source": "web"}
+event: image
+data: {"id": "sGwnt1-xgSP7BFeH", "name": "Helix Nebula - NASA", "mediaType": "", "url": "https://www.nasa.gov/wp-content/uploads/2023/03/archives_helix.jpg", "pageUrl": "https://www.nasa.gov/image-article/helix-nebula/", "source": "web"}
+event: done
+data: {"answer": "Here’s a **direct, publicly accessible NASA nebula image URL** you requested (no AI‑generated image):\n\n**Orion Nebula (Hubble Telescope) — 1280×720 JPG**  \n➡️ https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-1280.jpg  \nThis image shows the star‑forming Orion Nebula captured by *NASA’s Hubble Space Telescope*. citeturn1search2\n\nYou can open that URL directly in your browser to view the nebula photo.", "images": [{"id": "xUElUS2aVkhuPCBX", "name": "c-1280.jpg", "mediaType": "image/jpeg", "url": "https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-1280.jpg", "pageUrl": "https://svs.gsfc.nasa.gov/vis/a010000/a012000/a012086/c-1280.jpg", "source": "web"}, {"id": "SWijQhdPPHVO6RfV", "name": "Uncovering the Veil (Nebula) - NASA", "mediaType": "", "url": "https://www.nasa.gov/wp-content/uploads/2023/03/659202main_veil_full.jpg", "pageUrl": "https://www.nasa.gov/image-article/uncovering-veil-nebula/", "source": "web"}, {"id": "sGwnt1-xgSP7BFeH", "name": "Helix Nebula - NASA", "mediaType": "", "url": "https://www.nasa.gov/wp-content/uploads/2023/03/archives_helix.jpg", "pageUrl": "https://www.nasa.gov/image-article/helix-nebula/", "source": "web"}], "conversationId": "6a0160ae-49f4-832a-b67a-40058cc3718d", "parentMessageId": "d0022b0a-d25e-4db0-ab77-1b85b397aa5f", "model": "gpt-4o", "configId": 2, "configName": "account_2"}

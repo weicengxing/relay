@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html as html_lib
 import json
 import os
 import random
@@ -19,7 +20,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import quote
+from urllib.parse import quote, urljoin, urlparse
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -531,6 +532,8 @@ def seed_defaults(con: sqlite3.Connection) -> None:
         ("announcements.badge_default", "0", "Default announcement badge count"),
         ("maintenance.write_disabled", "false", "Disable database write APIs during migration"),
         ("auth.turnstile_enabled", "true", "Require Cloudflare Turnstile verification during registration"),
+        ("recharge.alipay_qr_image", "", "Alipay payment QR image URL or data URL"),
+        ("recharge.wechat_qr_image", "", "WeChat payment QR image URL or data URL"),
     ]
     con.executemany(
         """
@@ -1135,6 +1138,21 @@ class AdminMaintenanceRequest(BaseModel):
     writeDisabled: bool
 
 
+class AdminSettingImageRequest(BaseModel):
+    settingKey: str
+    fileName: str
+    dataUrl: str
+
+
+class AdminSettingImageDeleteRequest(BaseModel):
+    settingKey: str
+
+
+class AdminBalanceCreditRequest(BaseModel):
+    email: str
+    amount: Decimal
+
+
 app = FastAPI(title="Relay Python Backend")
 app.router.route_class = WriteGuardRoute
 origins = [origin.strip() for origin in os.getenv("RELAY_PY_CORS_ORIGINS", "*").split(",") if origin.strip()]
@@ -1189,6 +1207,7 @@ def bootstrap() -> dict[str, Any]:
                 "enabled": turnstile_enabled(),
                 "siteKey": TURNSTILE_SITE_KEY,
             },
+            "rechargePayment": recharge_payment_settings(),
         }
     )
 
@@ -1501,6 +1520,89 @@ def admin_set_maintenance(
     return api_ok({"writeDisabled": payload.writeDisabled})
 
 
+@app.post("/api/admin/settings/image")
+@db_write_api
+def admin_upload_setting_image(
+    payload: AdminSettingImageRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    current_owner_user_id(authorization)
+    setting_key = payload.settingKey.strip()
+    if not setting_key:
+        raise AppError(400, "VALIDATION_FAILED", "Setting key is required")
+    with db() as con:
+        row = con.execute("select setting_value from app_settings where setting_key = ?", (setting_key,)).fetchone()
+        if not row:
+            raise AppError(404, "NOT_FOUND", "Setting not found")
+        old_value = str(row["setting_value"] or "")
+        relative_url = save_setting_image(payload.fileName, payload.dataUrl, setting_key)
+        if old_value != relative_url:
+            delete_setting_image(old_value)
+        con.execute(
+            """
+            update app_settings
+            set setting_value = ?, updated_at = ?
+            where setting_key = ?
+            """,
+            (relative_url, now_iso(), setting_key),
+        )
+    return api_ok({"settingKey": setting_key, "settingValue": relative_url})
+
+
+@app.post("/api/admin/settings/image/delete")
+@db_write_api
+def admin_delete_setting_image(
+    payload: AdminSettingImageDeleteRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    current_owner_user_id(authorization)
+    setting_key = payload.settingKey.strip()
+    if not setting_key:
+        raise AppError(400, "VALIDATION_FAILED", "Setting key is required")
+    with db() as con:
+        row = con.execute("select setting_value from app_settings where setting_key = ?", (setting_key,)).fetchone()
+        if not row:
+            raise AppError(404, "NOT_FOUND", "Setting not found")
+        delete_setting_image(str(row["setting_value"] or ""))
+        con.execute(
+            """
+            update app_settings
+            set setting_value = '', updated_at = ?
+            where setting_key = ?
+            """,
+            (now_iso(), setting_key),
+        )
+    return api_ok({"settingKey": setting_key, "settingValue": ""})
+
+
+@app.post("/api/admin/users/balance-credit")
+@db_write_api
+def admin_credit_user_balance(
+    payload: AdminBalanceCreditRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    current_owner_user_id(authorization)
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise AppError(400, "VALIDATION_FAILED", "Invalid email")
+    if payload.amount <= 0:
+        raise AppError(400, "VALIDATION_FAILED", "Amount must be greater than 0")
+    credit = parse_decimal(payload.amount) * Decimal("10")
+    with db() as con:
+        user = con.execute("select * from users where email = ?", (email,)).fetchone()
+        if not user:
+            raise AppError(404, "NOT_FOUND", "User not found")
+        next_balance = add_balance(con, user["id"], credit)
+    return api_ok(
+        {
+            "email": email,
+            "inputAmount": float(payload.amount),
+            "creditedAmount": float(credit),
+            "balance": float(next_balance),
+        }
+    )
+
+
 @app.get("/api/admin/sqlite/tables/{table}/rows")
 def admin_sqlite_rows(
     table: str,
@@ -1665,6 +1767,76 @@ def models() -> dict[str, Any]:
             """
         ).fetchall()
     return api_ok([model_to_response(row) for row in rows])
+
+
+@app.get("/v1/models")
+def openai_models() -> dict[str, Any]:
+    with db() as con:
+        rows = con.execute(
+            """
+            select * from model_catalog
+            where enabled = 1
+              and provider = 'OpenAI'
+            order by sort_order, id
+            """
+        ).fetchall()
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": row["id"],
+                "object": "model",
+                "created": 0,
+                "owned_by": "relay",
+            }
+            for row in rows
+        ],
+    }
+
+
+@app.post("/v1/chat/completions")
+@db_write_api
+async def openai_chat_completions(request: Request) -> Response:
+    body = await request.body()
+    raw_key = bearer_token(request.headers.get("authorization")) or request.headers.get("x-api-key")
+    try:
+        api_key = authenticate_api_key(raw_key)
+    except AppError as exc:
+        return openai_error(exc.status, exc.message)
+    if user_balance(api_key["user_id"]) < Decimal("0"):
+        return openai_error(402, "余额不足")
+
+    try:
+        payload = json.loads(body.decode("utf-8") or "{}")
+    except Exception:
+        return openai_error(400, "Request body must be valid JSON")
+    if not isinstance(payload, dict):
+        return openai_error(400, "Request body must be a JSON object")
+
+    message = openai_messages_to_text(payload.get("messages"))
+    if not message:
+        return openai_error(400, "messages is required")
+    model = str(payload.get("model") or DEFAULT_WEB_MODEL)
+    web_payload = WebChatMessageRequest(
+        message=message,
+        newConversation=bool(payload.get("new_conversation", True)),
+        model=model,
+        images=openai_messages_to_images(payload.get("messages")),
+    )
+    stream = bool(payload.get("stream"))
+    if stream:
+        return StreamingResponse(
+            openai_chat_completion_stream(api_key["user_id"], web_payload, model),
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    try:
+        result = send_web_chat_turn(api_key["user_id"], web_payload, None)
+    except Exception as exc:
+        message = exc.message if isinstance(exc, AppError) else exception_summary(exc)
+        return openai_error(502, message)
+    return JSONResponse(openai_chat_completion_response(model, result.get("answer") or ""))
 
 
 @app.get("/api/announcements")
@@ -2030,6 +2202,17 @@ def web_chat_message_stream(payload: WebChatMessageRequest, authorization: str |
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+@app.get("/api/web-chat/images/{config_id}/{file_id}")
+def web_chat_generated_image(config_id: int, file_id: str, token: str) -> Response:
+    verify_web_chat_image_token(config_id, file_id, token)
+    with db() as con:
+        config = con.execute("select * from web_chat_model_configs where id = ?", (config_id,)).fetchone()
+    if not config:
+        raise AppError(404, "NOT_FOUND", "Web chat image config not found")
+    content, media_type = download_generated_web_image(row_to_dict(config), file_id)
+    return Response(content=content, media_type=media_type)
+
+
 @app.get("/api/web-chat/history")
 def chat_history(page: int = 1, size: int = 20, authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user_id = current_user_id(authorization)
@@ -2104,12 +2287,33 @@ def image_history_documents(images: list[dict[str, Any]] | None) -> list[dict[st
             continue
         result.append(
             {
+                "id": image.get("id"),
                 "name": image.get("name"),
                 "media_type": image.get("mediaType") or image.get("media_type"),
                 "size": image.get("size"),
                 "width": image.get("width"),
                 "height": image.get("height"),
                 "data": image.get("data"),
+                "url": image.get("url"),
+                "page_url": image.get("pageUrl") or image.get("page_url"),
+                "source": image.get("source"),
+            }
+        )
+    return result
+
+
+def source_history_documents(sources: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for source in sources or []:
+        if not isinstance(source, dict):
+            continue
+        result.append(
+            {
+                "title": source.get("title"),
+                "url": source.get("url"),
+                "attribution": source.get("attribution"),
+                "snippet": source.get("snippet"),
+                "pub_date": source.get("pubDate") or source.get("pub_date"),
             }
         )
     return result
@@ -2129,7 +2333,11 @@ def chat_history_turn_document(user_id: str, request_payload: WebChatMessageRequ
             "message": request_payload.message or "",
             "images": image_history_documents(request_payload.images),
         },
-        "assistant": {"answer": response.get("answer") or ""},
+        "assistant": {
+            "answer": response.get("answer") or "",
+            "images": image_history_documents(response.get("images")),
+            "sources": source_history_documents(response.get("sources")),
+        },
     }
 
 
@@ -2144,19 +2352,17 @@ def parse_chat_history_turns(content: str) -> list[dict[str, Any]]:
             continue
         user = node.get("user") if isinstance(node.get("user"), dict) else {}
         assistant = node.get("assistant") if isinstance(node.get("assistant"), dict) else {}
-        images = []
-        for image in user.get("images") or []:
-            if isinstance(image, dict):
-                images.append(
-                    {
-                        "name": image.get("name"),
-                        "mediaType": image.get("media_type") or image.get("mediaType"),
-                        "size": image.get("size"),
-                        "width": image.get("width"),
-                        "height": image.get("height"),
-                        "data": image.get("data"),
-                    }
-                )
+        images = [history_image_response(image) for image in user.get("images") or [] if isinstance(image, dict)]
+        assistant_images = [
+            history_image_response(image)
+            for image in assistant.get("images") or []
+            if isinstance(image, dict)
+        ]
+        assistant_sources = [
+            history_source_response(source)
+            for source in assistant.get("sources") or []
+            if isinstance(source, dict)
+        ]
         turns.append(
             {
                 "createdAt": node.get("created_at"),
@@ -2166,11 +2372,38 @@ def parse_chat_history_turns(content: str) -> list[dict[str, Any]]:
                 "configName": node.get("config_name"),
                 "userMessage": user.get("message"),
                 "images": images,
-                "assistantAnswer": assistant.get("answer"),
+                "assistantImages": assistant_images,
+                "assistantSources": assistant_sources,
+                "assistantAnswer": clean_web_answer(assistant.get("answer") or ""),
             }
         )
     turns.reverse()
     return turns
+
+
+def history_image_response(image: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": image.get("id"),
+        "name": image.get("name"),
+        "mediaType": image.get("media_type") or image.get("mediaType"),
+        "size": image.get("size"),
+        "width": image.get("width"),
+        "height": image.get("height"),
+        "data": image.get("data"),
+        "url": image.get("url"),
+        "pageUrl": image.get("page_url") or image.get("pageUrl"),
+        "source": image.get("source"),
+    }
+
+
+def history_source_response(source: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": source.get("title"),
+        "url": source.get("url"),
+        "attribution": source.get("attribution"),
+        "snippet": source.get("snippet"),
+        "pubDate": source.get("pub_date") or source.get("pubDate"),
+    }
 
 
 def create_chat_history_file(con: sqlite3.Connection, user_id: str, sequence: int) -> sqlite3.Row:
@@ -2333,6 +2566,8 @@ def send_web_chat_turn(
     next_parent_id = first_non_blank(result.get("parentMessageId"), parent_message_id)
     response = {
         "answer": result.get("answer") or "",
+        "images": result.get("images") or [],
+        "sources": result.get("sources") or [],
         "conversationId": next_conversation_id,
         "parentMessageId": next_parent_id,
         "model": model,
@@ -2377,6 +2612,10 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
     headers = web_headers(session, path, conversation_id, "text/event-stream", conduit_token)
     url = trim_slash(session.get("base_url") or "https://chatgpt.com") + path
     answer = ""
+    response_images: list[dict[str, Any]] = []
+    web_image_candidates: list[dict[str, str]] = []
+    web_sources: list[dict[str, Any]] = []
+    image_placeholder_total = 0
     result_conversation_id = conversation_id
     assistant_id = None
     handoff_topic_id = None
@@ -2393,8 +2632,24 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
                     continue
                 if event == "[DONE]":
                     break
+                for image in collect_generated_images(event, session):
+                    if append_unique_image(response_images, image):
+                        yield sse_event("image", image)
+                new_candidates = collect_web_image_candidates(event)
+                web_image_candidates.extend(new_candidates)
+                for candidate in new_candidates:
+                    image = direct_web_image_from_candidate(candidate)
+                    if image and append_unique_image(response_images, image):
+                        yield sse_event("image", image)
+                for source in collect_web_sources(event):
+                    if append_unique_source(web_sources, source):
+                        yield sse_event("source", source)
                 next_answer = apply_event(answer, event)
                 if next_answer is not None and next_answer != answer:
+                    next_placeholder_total = web_image_placeholder_count(next_answer)
+                    if next_placeholder_total > image_placeholder_total:
+                        image_placeholder_total = next_placeholder_total
+                        yield sse_event("image_placeholder", {"count": image_placeholder_total})
                     if next_answer.startswith(answer):
                         delta = next_answer[len(answer) :]
                         if delta:
@@ -2409,11 +2664,31 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
                 handoff_topic_id = first_non_blank(extract_topic_id(event), handoff_topic_id)
                 if stream_handoff and handoff_topic_id:
                     for handoff in read_handoff_topic_stream(session, handoff_topic_id, result_conversation_id, answer):
+                        for image in handoff.get("images") or []:
+                            if append_unique_image(response_images, image):
+                                yield sse_event("image", image)
+                        new_candidates = handoff.get("webImageCandidates") or []
+                        web_image_candidates.extend(new_candidates)
+                        for candidate in new_candidates:
+                            image = direct_web_image_from_candidate(candidate)
+                            if image and append_unique_image(response_images, image):
+                                yield sse_event("image", image)
+                        for source in handoff.get("webSources") or []:
+                            if append_unique_source(web_sources, source):
+                                yield sse_event("source", source)
                         if handoff["type"] == "delta":
+                            next_placeholder_total = web_image_placeholder_count(handoff["answer"])
+                            if next_placeholder_total > image_placeholder_total:
+                                image_placeholder_total = next_placeholder_total
+                                yield sse_event("image_placeholder", {"count": image_placeholder_total})
                             answer = handoff["answer"]
                             assistant_id = handoff.get("assistantMessageId") or assistant_id
                             yield sse_event("delta", {"delta": handoff["delta"]})
                         elif handoff["type"] == "replace":
+                            next_placeholder_total = web_image_placeholder_count(handoff["answer"])
+                            if next_placeholder_total > image_placeholder_total:
+                                image_placeholder_total = next_placeholder_total
+                                yield sse_event("image_placeholder", {"count": image_placeholder_total})
                             answer = handoff["answer"]
                             assistant_id = handoff.get("assistantMessageId") or assistant_id
                             yield sse_event("replace", {"text": answer})
@@ -2426,21 +2701,50 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
                     break
     if stream_handoff and handoff_topic_id and not handoff_completed:
         for handoff in read_handoff_topic_stream(session, handoff_topic_id, result_conversation_id, answer):
+            for image in handoff.get("images") or []:
+                if append_unique_image(response_images, image):
+                    yield sse_event("image", image)
+            new_candidates = handoff.get("webImageCandidates") or []
+            web_image_candidates.extend(new_candidates)
+            for candidate in new_candidates:
+                image = direct_web_image_from_candidate(candidate)
+                if image and append_unique_image(response_images, image):
+                    yield sse_event("image", image)
+            for source in handoff.get("webSources") or []:
+                if append_unique_source(web_sources, source):
+                    yield sse_event("source", source)
             if handoff["type"] == "delta":
+                next_placeholder_total = web_image_placeholder_count(handoff["answer"])
+                if next_placeholder_total > image_placeholder_total:
+                    image_placeholder_total = next_placeholder_total
+                    yield sse_event("image_placeholder", {"count": image_placeholder_total})
                 answer = handoff["answer"]
                 assistant_id = handoff.get("assistantMessageId") or assistant_id
                 yield sse_event("delta", {"delta": handoff["delta"]})
             elif handoff["type"] == "replace":
+                next_placeholder_total = web_image_placeholder_count(handoff["answer"])
+                if next_placeholder_total > image_placeholder_total:
+                    image_placeholder_total = next_placeholder_total
+                    yield sse_event("image_placeholder", {"count": image_placeholder_total})
                 answer = handoff["answer"]
                 assistant_id = handoff.get("assistantMessageId") or assistant_id
                 yield sse_event("replace", {"text": answer})
             elif handoff["type"] == "done":
                 answer = handoff["answer"]
                 assistant_id = handoff.get("assistantMessageId") or assistant_id
+    cleaned_answer = clean_web_answer(answer)
+    if cleaned_answer != answer:
+        answer = cleaned_answer
+        yield sse_event("replace", {"text": answer})
+    for image in resolve_web_images(answer, web_image_candidates):
+        if append_unique_image(response_images, image):
+            yield sse_event("image", image)
     next_conversation_id = first_non_blank(result_conversation_id, conversation_id)
     next_parent_id = first_non_blank(assistant_id, parent_message_id)
     result_payload = {
         "answer": answer,
+        "images": response_images,
+        "sources": web_sources,
         "conversationId": next_conversation_id,
         "parentMessageId": next_parent_id,
         "model": model,
@@ -2462,6 +2766,399 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
 
 def sse_event(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def web_chat_image_token(config_id: int, file_id: str, ttl_seconds: int = 3600) -> str:
+    payload = {"configId": int(config_id), "fileId": file_id, "exp": int(time.time()) + ttl_seconds}
+    encoded = b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signature = b64url(hmac.new(JWT_SECRET.encode(), encoded.encode(), hashlib.sha256).digest())
+    return f"{encoded}.{signature}"
+
+
+def verify_web_chat_image_token(config_id: int, file_id: str, token: str) -> None:
+    if not re.fullmatch(r"file_[A-Za-z0-9]+", file_id or ""):
+        raise AppError(400, "VALIDATION_FAILED", "Invalid image id")
+    try:
+        encoded, signature = token.split(".", 1)
+        expected = b64url(hmac.new(JWT_SECRET.encode(), encoded.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(expected, signature):
+            raise ValueError("bad signature")
+        payload = json.loads(b64url_decode(encoded).decode("utf-8"))
+        if int(payload.get("configId", -1)) != int(config_id) or payload.get("fileId") != file_id:
+            raise ValueError("mismatch")
+        if int(payload.get("exp", 0)) <= int(time.time()):
+            raise ValueError("expired")
+    except Exception as exc:
+        raise AppError(401, "UNAUTHORIZED", "Invalid image token") from exc
+
+
+def generated_web_image_url(config: dict[str, Any], file_id: str) -> str:
+    config_id = int(config["id"])
+    token = web_chat_image_token(config_id, file_id)
+    return f"/api/web-chat/images/{config_id}/{quote(file_id, safe='')}?token={quote(token, safe='')}"
+
+
+def download_generated_web_image(config: dict[str, Any], file_id: str) -> tuple[bytes, str]:
+    if not re.fullmatch(r"file_[A-Za-z0-9]+", file_id or ""):
+        raise AppError(400, "VALIDATION_FAILED", "Invalid image id")
+    base = trim_slash(config.get("base_url") or "https://chatgpt.com")
+    metadata_path = f"/backend-api/files/{file_id}/download"
+    with httpx.Client(timeout=120, follow_redirects=True) as client:
+        metadata_response = client.get(base + metadata_path, headers=web_headers(config, metadata_path, None, "*/*"))
+        if metadata_response.status_code < 200 or metadata_response.status_code >= 300:
+            raise AppError(
+                502,
+                "INTERNAL_ERROR",
+                truncate(metadata_response.text or f"Image metadata HTTP {metadata_response.status_code}", 1000),
+            )
+        metadata = metadata_response.json()
+        download_url = metadata.get("download_url") if isinstance(metadata, dict) else None
+        if not isinstance(download_url, str) or not download_url:
+            raise AppError(502, "INTERNAL_ERROR", "Generated image download URL missing")
+        parsed = urlparse(download_url)
+        content_path = parsed.path or "/backend-api/estuary/content"
+        content_url = urljoin(base + "/", download_url)
+        image_response = client.get(content_url, headers=web_headers(config, content_path, None, "*/*"))
+        if image_response.status_code < 200 or image_response.status_code >= 300:
+            raise AppError(
+                502,
+                "INTERNAL_ERROR",
+                truncate(image_response.text or f"Image download HTTP {image_response.status_code}", 1000),
+            )
+    media_type = image_response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if not media_type.startswith("image/"):
+        if image_response.content.startswith(b"\x89PNG\r\n\x1a\n"):
+            media_type = "image/png"
+        else:
+            media_type = metadata.get("mime_type") or "application/octet-stream"
+    return image_response.content, media_type
+
+
+def append_unique_image(images: list[dict[str, Any]], image: dict[str, Any]) -> bool:
+    key = image.get("id") or image.get("url") or image.get("pageUrl")
+    if not key:
+        return False
+    for existing in images:
+        if key in {existing.get("id"), existing.get("url"), existing.get("pageUrl")}:
+            return False
+    images.append(image)
+    return True
+
+
+def append_unique_source(sources: list[dict[str, Any]], source: dict[str, Any]) -> bool:
+    url = source.get("url")
+    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return False
+    if any(existing.get("url") == url for existing in sources):
+        return False
+    sources.append(source)
+    return True
+
+
+def collect_web_sources(node: Any) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+
+    def add(value: Any) -> None:
+        if not isinstance(value, dict):
+            return
+        url = value.get("url")
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            return
+        source = {
+            "title": str(value.get("title") or value.get("attribution") or url),
+            "url": url,
+            "attribution": value.get("attribution") or urlparse(url).netloc,
+            "snippet": value.get("snippet") or "",
+            "pubDate": value.get("pub_date") or value.get("pubDate"),
+        }
+        append_unique_source(sources, source)
+
+    def walk(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                walk(item)
+            return
+        if not isinstance(value, dict):
+            return
+        if value.get("type") == "search_result":
+            add(value)
+        for key in ("items", "sources", "supporting_websites", "entries"):
+            if isinstance(value.get(key), list):
+                for item in value[key]:
+                    if isinstance(item, dict):
+                        add(item)
+                        walk(item)
+        for child in value.values():
+            walk(child)
+
+    walk(node)
+    return sources
+
+
+def collect_generated_images(node: Any, config: dict[str, Any]) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                walk(item)
+            return
+        if not isinstance(value, dict):
+            return
+        asset_pointer = value.get("asset_pointer")
+        if value.get("content_type") == "image_asset_pointer" and isinstance(asset_pointer, str):
+            file_id = asset_pointer.removeprefix("sediment://")
+            if re.fullmatch(r"file_[A-Za-z0-9]+", file_id or ""):
+                metadata = value.get("metadata") if isinstance(value.get("metadata"), dict) else {}
+                generation = metadata.get("generation") if isinstance(metadata.get("generation"), dict) else {}
+                image = {
+                    "id": file_id,
+                    "fileId": file_id,
+                    "name": f"{file_id}.png",
+                    "mediaType": "image/png",
+                    "size": value.get("size_bytes"),
+                    "width": value.get("width"),
+                    "height": value.get("height"),
+                    "url": generated_web_image_url(config, file_id),
+                    "source": "generated",
+                }
+                if generation.get("gen_id"):
+                    image["generationId"] = generation["gen_id"]
+                append_unique_image(found, image)
+        for child in value.values():
+            walk(child)
+
+    walk(node)
+    return found
+
+
+def collect_web_image_candidates(node: Any) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+
+    def add(url: Any, title: Any = None) -> None:
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            return
+        if any(item["url"] == url for item in candidates):
+            return
+        lowered = url.lower()
+        title_text = str(title or "")
+        if is_probable_web_image_url(lowered) or any(marker in title_text.lower() for marker in ["image", "photo", "picture"]):
+            candidates.append({"url": url, "title": title_text})
+
+    def add_urls_from_text(text: Any, title: Any = None) -> None:
+        if not isinstance(text, str):
+            return
+        for url in urls_from_text(text):
+            add(url, title)
+
+    def walk(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                walk(item)
+            return
+        if not isinstance(value, dict):
+            return
+        if value.get("type") == "search_result":
+            add(value.get("url"), value.get("title"))
+        if isinstance(value.get("image_result"), dict):
+            image = value["image_result"]
+            title = image.get("title")
+            for key in ["content_url", "thumbnail_url", "original_content_url", "url"]:
+                add(image.get(key), title)
+        title = value.get("title") or value.get("alt")
+        for key in ["content_url", "thumbnail_url", "original_content_url", "image_url", "url"]:
+            add(value.get(key), title)
+        safe_urls = value.get("safe_urls")
+        if isinstance(safe_urls, list):
+            for url in safe_urls:
+                add(url, title)
+        add_urls_from_text(value.get("alt"), title)
+        add_urls_from_text(value.get("matched_text"), title)
+        for child in value.values():
+            walk(child)
+
+    walk(node)
+    return candidates
+
+
+def is_probable_web_image_url(value: str) -> bool:
+    parsed = urlparse(value)
+    path = parsed.path.lower()
+    host = parsed.netloc.lower()
+    return (
+        path.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif"))
+        or "images.openai.com" in host
+        or "image" in path
+        or "images" in path
+        or "photo" in path
+        or "photos" in path
+        or "asset" in path
+        or "hubble" in path
+    )
+
+
+def urls_from_text(text: str) -> list[str]:
+    urls = re.findall(r"https?://[^\s)\]\"<>]+", text or "")
+    result: list[str] = []
+    for url in urls:
+        url = html_lib.unescape(url.rstrip(".,;:"))
+        if url not in result:
+            result.append(url)
+    return result
+
+
+def clean_web_answer(answer: str) -> str:
+    cleaned = re.sub(r"image_group.*?", "", answer or "", flags=re.S)
+    cleaned = re.sub(r"(?:cite|i)[^]*", "", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def web_image_placeholder_count(answer: str, limit: int = 8) -> int:
+    count = 0
+    for match in re.finditer(r"image_group(.*?)(?:|$)", answer or "", flags=re.S):
+        payload = match.group(1) or ""
+        refs = re.search(r'"image_refs"\s*:\s*\[(.*?)\]', payload, flags=re.S)
+        if refs:
+            count += len(re.findall(r'"[^"]+"', refs.group(1))) or 1
+        else:
+            count += 1
+    if not count and "image" in (answer or ""):
+        count = 1
+    return min(count, limit)
+
+
+def direct_web_image_from_candidate(candidate: dict[str, str]) -> dict[str, Any] | None:
+    url = html_lib.unescape(candidate.get("url") or "")
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    query = parsed.query.lower()
+    is_direct = (
+        path.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif"))
+        or host == "images.openai.com"
+        or host.endswith(".images.openai.com")
+        or "purpose=fullsize" in query
+    )
+    if not is_direct:
+        return None
+    media_type = ""
+    if path.endswith(".png"):
+        media_type = "image/png"
+    elif path.endswith((".jpg", ".jpeg")):
+        media_type = "image/jpeg"
+    elif path.endswith(".webp"):
+        media_type = "image/webp"
+    elif path.endswith(".gif"):
+        media_type = "image/gif"
+    return {
+        "id": sha256_urlsafe(url.encode("utf-8"))[:16],
+        "name": candidate.get("title") or Path(parsed.path).name or "web image",
+        "mediaType": media_type,
+        "url": url,
+        "pageUrl": url,
+        "source": "web",
+    }
+
+
+def resolve_web_images(answer: str, candidates: list[dict[str, str]], limit: int = 8) -> list[dict[str, Any]]:
+    merged: list[dict[str, str]] = [{"url": url, "title": ""} for url in urls_from_text(answer)]
+    for candidate in candidates:
+        if not any(item["url"] == candidate["url"] for item in merged):
+            merged.append(candidate)
+
+    images: list[dict[str, Any]] = []
+    ordered = sorted(enumerate(merged), key=lambda item: (-web_image_candidate_score(item[1]["url"]), item[0]))
+    for _, candidate in ordered[:48]:
+        resolved = resolve_web_image(candidate["url"], candidate.get("title") or "")
+        if resolved and append_unique_image(images, resolved) and len(images) >= limit:
+            break
+    return images
+
+
+def web_image_candidate_score(url: str) -> int:
+    parsed = urlparse(html_lib.unescape(url or ""))
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    query = parsed.query.lower()
+    if path.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+        return 5
+    if host == "images.openai.com" or host.endswith(".images.openai.com"):
+        return 4
+    if "purpose=fullsize" in query:
+        return 4
+    if "thumbnail" in path or "purpose=inline" in query:
+        return 3
+    if any(marker in path for marker in ["/image", "/images", "/photo", "/photos", "/asset"]):
+        return 2
+    return 1
+
+
+def resolve_web_image(url: str, title: str = "") -> dict[str, Any] | None:
+    url = html_lib.unescape(url)
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    try:
+        with httpx.Client(timeout=8, follow_redirects=True) as client:
+            response = client.get(url, headers={"accept": "image/*,text/html;q=0.9,*/*;q=0.8"})
+    except Exception:
+        return None
+    content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    final_url = str(response.url)
+    if response.status_code >= 200 and response.status_code < 300 and content_type.startswith("image/"):
+        return {
+            "id": sha256_urlsafe(final_url.encode("utf-8"))[:16],
+            "name": title or Path(urlparse(final_url).path).name or "web image",
+            "mediaType": content_type,
+            "url": final_url,
+            "pageUrl": final_url,
+            "source": "web",
+        }
+    if response.status_code < 200 or response.status_code >= 300 or "html" not in content_type:
+        return None
+    html = response.text[:262144]
+    image_url = first_non_blank(
+        html_meta_content(html, "og:image"),
+        html_meta_content(html, "twitter:image"),
+        html_link_href(html, "image_src"),
+    )
+    if not image_url:
+        return None
+    image_url = html_lib.unescape(urljoin(final_url, image_url))
+    return {
+        "id": sha256_urlsafe((final_url + "\n" + image_url).encode("utf-8"))[:16],
+        "name": title or html_title(html) or Path(urlparse(image_url).path).name or "web image",
+        "mediaType": "",
+        "url": image_url,
+        "pageUrl": final_url,
+        "source": "web",
+    }
+
+
+def html_meta_content(html: str, property_name: str) -> str | None:
+    pattern = rf'<meta\s+[^>]*(?:property|name)=["\']{re.escape(property_name)}["\'][^>]*content=["\']([^"\']+)["\']'
+    match = re.search(pattern, html, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    pattern = rf'<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']{re.escape(property_name)}["\']'
+    match = re.search(pattern, html, re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
+def html_link_href(html: str, rel_name: str) -> str | None:
+    pattern = rf'<link\s+[^>]*rel=["\'][^"\']*{re.escape(rel_name)}[^"\']*["\'][^>]*href=["\']([^"\']+)["\']'
+    match = re.search(pattern, html, re.IGNORECASE)
+    return match.group(1).strip() if match else None
+
+
+def html_title(html: str) -> str | None:
+    match = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    return re.sub(r"\s+", " ", match.group(1)).strip()
 
 
 def web_headers(config: dict[str, Any], path: str, conversation_id: str | None, accept: str, conduit: str | None = None) -> dict[str, str]:
@@ -2675,6 +3372,10 @@ def send_web_conversation(
     headers = web_headers(config, path, conversation_id, "text/event-stream", conduit_token)
     url = trim_slash(config.get("base_url") or "https://chatgpt.com") + path
     answer = ""
+    response_images: list[dict[str, Any]] = []
+    web_image_candidates: list[dict[str, str]] = []
+    web_sources: list[dict[str, Any]] = []
+    image_placeholder_total = 0
     result_conversation_id = conversation_id
     assistant_id = None
     handoff_topic_id = None
@@ -2691,8 +3392,24 @@ def send_web_conversation(
                     continue
                 if event == "[DONE]":
                     break
+                for image in collect_generated_images(event, config):
+                    if append_unique_image(response_images, image):
+                        emit("image", image)
+                new_candidates = collect_web_image_candidates(event)
+                web_image_candidates.extend(new_candidates)
+                for candidate in new_candidates:
+                    image = direct_web_image_from_candidate(candidate)
+                    if image and append_unique_image(response_images, image):
+                        emit("image", image)
+                for source in collect_web_sources(event):
+                    if append_unique_source(web_sources, source):
+                        emit("source", source)
                 next_answer = apply_event(answer, event)
                 if next_answer is not None and next_answer != answer:
+                    next_placeholder_total = web_image_placeholder_count(next_answer)
+                    if next_placeholder_total > image_placeholder_total:
+                        image_placeholder_total = next_placeholder_total
+                        emit("image_placeholder", {"count": image_placeholder_total})
                     if next_answer.startswith(answer):
                         delta = next_answer[len(answer) :]
                         if delta:
@@ -2707,8 +3424,24 @@ def send_web_conversation(
                 handoff_topic_id = first_non_blank(extract_topic_id(event), handoff_topic_id)
                 if stream_handoff and handoff_topic_id:
                     for handoff in read_handoff_topic_stream(config, handoff_topic_id, result_conversation_id, answer):
+                        for image in handoff.get("images") or []:
+                            if append_unique_image(response_images, image):
+                                emit("image", image)
+                        new_candidates = handoff.get("webImageCandidates") or []
+                        web_image_candidates.extend(new_candidates)
+                        for candidate in new_candidates:
+                            image = direct_web_image_from_candidate(candidate)
+                            if image and append_unique_image(response_images, image):
+                                emit("image", image)
+                        for source in handoff.get("webSources") or []:
+                            if append_unique_source(web_sources, source):
+                                emit("source", source)
                         if handoff["type"] in {"delta", "replace"}:
                             next_answer = handoff["answer"]
+                            next_placeholder_total = web_image_placeholder_count(next_answer)
+                            if next_placeholder_total > image_placeholder_total:
+                                image_placeholder_total = next_placeholder_total
+                                emit("image_placeholder", {"count": image_placeholder_total})
                             if handoff["type"] == "delta":
                                 emit("delta", {"delta": handoff["delta"]})
                             else:
@@ -2724,8 +3457,24 @@ def send_web_conversation(
                     break
     if stream_handoff and handoff_topic_id and not handoff_completed:
         for handoff in read_handoff_topic_stream(config, handoff_topic_id, result_conversation_id, answer):
+            for image in handoff.get("images") or []:
+                if append_unique_image(response_images, image):
+                    emit("image", image)
+            new_candidates = handoff.get("webImageCandidates") or []
+            web_image_candidates.extend(new_candidates)
+            for candidate in new_candidates:
+                image = direct_web_image_from_candidate(candidate)
+                if image and append_unique_image(response_images, image):
+                    emit("image", image)
+            for source in handoff.get("webSources") or []:
+                if append_unique_source(web_sources, source):
+                    emit("source", source)
             if handoff["type"] in {"delta", "replace"}:
                 next_answer = handoff["answer"]
+                next_placeholder_total = web_image_placeholder_count(next_answer)
+                if next_placeholder_total > image_placeholder_total:
+                    image_placeholder_total = next_placeholder_total
+                    emit("image_placeholder", {"count": image_placeholder_total})
                 if handoff["type"] == "delta":
                     emit("delta", {"delta": handoff["delta"]})
                 else:
@@ -2735,7 +3484,20 @@ def send_web_conversation(
             elif handoff["type"] == "done":
                 answer = handoff["answer"]
                 assistant_id = handoff.get("assistantMessageId") or assistant_id
-    return {"answer": answer, "conversationId": result_conversation_id, "parentMessageId": assistant_id}
+    cleaned_answer = clean_web_answer(answer)
+    if cleaned_answer != answer:
+        answer = cleaned_answer
+        emit("replace", {"text": answer})
+    for image in resolve_web_images(answer, web_image_candidates):
+        if append_unique_image(response_images, image):
+            emit("image", image)
+    return {
+        "answer": answer,
+        "images": response_images,
+        "sources": web_sources,
+        "conversationId": result_conversation_id,
+        "parentMessageId": assistant_id,
+    }
 
 
 def conversation_payload(message: str, model: str, conversation_id: str | None, parent_id: str, images: list[dict[str, Any]]) -> dict[str, Any]:
@@ -2887,20 +3649,33 @@ def read_handoff_topic_stream(
                     message = json.loads(text)
                 except Exception:
                     message = text
-                result = handle_handoff_message(message, answer)
+                result = handle_handoff_message(message, answer, config)
                 next_answer = result["answer"]
                 assistant_id = result.get("assistantMessageId") or assistant_id
+                extras = {
+                    "images": result.get("images") or [],
+                    "webImageCandidates": result.get("webImageCandidates") or [],
+                    "webSources": result.get("webSources") or [],
+                }
                 if next_answer != answer:
                     if next_answer.startswith(answer):
                         delta = next_answer[len(answer) :]
                         answer = next_answer
                         if delta:
-                            yield {"type": "delta", "delta": delta, "answer": answer, "assistantMessageId": assistant_id}
+                            yield {
+                                "type": "delta",
+                                "delta": delta,
+                                "answer": answer,
+                                "assistantMessageId": assistant_id,
+                                **extras,
+                            }
                     else:
                         answer = next_answer
-                        yield {"type": "replace", "answer": answer, "assistantMessageId": assistant_id}
+                        yield {"type": "replace", "answer": answer, "assistantMessageId": assistant_id, **extras}
+                elif extras["images"] or extras["webImageCandidates"] or extras["webSources"]:
+                    yield {"type": "image", "answer": answer, "assistantMessageId": assistant_id, **extras}
                 if result["done"]:
-                    yield {"type": "done", "answer": answer, "assistantMessageId": assistant_id}
+                    yield {"type": "done", "answer": answer, "assistantMessageId": assistant_id, **extras}
                     return
     except AppError:
         raise
@@ -2944,9 +3719,12 @@ def websocket_subscribe_frame(topic_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def handle_handoff_message(message: Any, answer: str) -> dict[str, Any]:
+def handle_handoff_message(message: Any, answer: str, config: dict[str, Any]) -> dict[str, Any]:
     done = False
     assistant_id = None
+    images: list[dict[str, Any]] = []
+    web_candidates: list[dict[str, str]] = []
+    web_sources: list[dict[str, Any]] = []
     for encoded in extract_encoded_items(message):
         for event in parse_encoded_sse(encoded):
             if event == "[DONE]":
@@ -2954,6 +3732,11 @@ def handle_handoff_message(message: Any, answer: str) -> dict[str, Any]:
                 continue
             if not isinstance(event, dict):
                 continue
+            for image in collect_generated_images(event, config):
+                append_unique_image(images, image)
+            web_candidates.extend(collect_web_image_candidates(event))
+            for source in collect_web_sources(event):
+                append_unique_source(web_sources, source)
             assistant_id = extract_assistant_message_id(event) or assistant_id
             next_answer = apply_event(answer, event)
             if next_answer is not None:
@@ -2962,7 +3745,14 @@ def handle_handoff_message(message: Any, answer: str) -> dict[str, Any]:
                 done = True
     if is_ws_done_message(message):
         done = True
-    return {"answer": answer, "done": done, "assistantMessageId": assistant_id}
+    return {
+        "answer": answer,
+        "done": done,
+        "assistantMessageId": assistant_id,
+        "images": images,
+        "webImageCandidates": web_candidates,
+        "webSources": web_sources,
+    }
 
 
 def extract_encoded_items(message: Any) -> list[str]:
@@ -3202,6 +3992,142 @@ def merge_full_text(answer: str, full_text: str | None) -> str:
 
 def is_done_event(event: Any) -> bool:
     return isinstance(event, dict) and event.get("type") in DONE_TYPES
+
+
+def openai_error(status: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        content={"error": {"message": message, "type": "relay_error", "code": "relay_error"}},
+    )
+
+
+def openai_messages_to_text(messages: Any) -> str:
+    if not isinstance(messages, list):
+        return ""
+    parts: list[str] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "user")
+        content = openai_content_to_text(message.get("content"))
+        if content:
+            parts.append(f"{role}: {content}" if role in {"system", "developer"} else content)
+    return "\n\n".join(parts).strip()
+
+
+def openai_content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text" and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "\n".join(part.strip() for part in parts if part and part.strip())
+    return ""
+
+
+def openai_messages_to_images(messages: Any) -> list[dict[str, Any]]:
+    images: list[dict[str, Any]] = []
+    if not isinstance(messages, list):
+        return images
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if not isinstance(item, dict) or item.get("type") != "image_url":
+                continue
+            image_url = item.get("image_url")
+            url = image_url.get("url") if isinstance(image_url, dict) else image_url
+            if isinstance(url, str) and url.strip():
+                images.append({"url": url.strip(), "name": "image"})
+    return images
+
+
+def openai_chat_completion_response(model: str, answer: str) -> dict[str, Any]:
+    completion_id = "chatcmpl-" + uuid.uuid4().hex
+    created = int(time.time())
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": answer},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+def openai_chat_completion_stream(user_id: str, payload: WebChatMessageRequest, model: str) -> Iterable[str]:
+    completion_id = "chatcmpl-" + uuid.uuid4().hex
+    created = int(time.time())
+    yield "data: " + json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ) + "\n\n"
+    try:
+        for item in stream_web_chat_turn(user_id, payload):
+            if isinstance(item, str):
+                chunk = sse_data_from_line(item)
+                if isinstance(chunk, dict) and isinstance(chunk.get("delta"), str) and chunk["delta"]:
+                    yield "data: " + json.dumps(
+                        {
+                            "id": completion_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [{"index": 0, "delta": {"content": chunk["delta"]}, "finish_reason": None}],
+                        },
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ) + "\n\n"
+    except Exception as exc:
+        message = exc.message if isinstance(exc, AppError) else exception_summary(exc)
+        yield "data: " + json.dumps({"error": {"message": message, "type": "relay_error", "code": "relay_error"}}, ensure_ascii=False) + "\n\n"
+    yield "data: " + json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ) + "\n\n"
+    yield "data: [DONE]\n\n"
+
+
+def sse_data_from_line(line: str) -> Any:
+    for text in line.splitlines():
+        text = text.strip()
+        if not text.startswith("data:"):
+            continue
+        data = text[5:].strip()
+        if not data or data == "[DONE]":
+            return None
+        try:
+            return json.loads(data)
+        except Exception:
+            return None
+    return None
 
 
 @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
@@ -3651,6 +4577,80 @@ def turnstile_enabled() -> bool:
             return bool_setting(con, "auth.turnstile_enabled", True)
     except sqlite3.Error:
         return True
+
+
+def recharge_payment_settings() -> dict[str, str]:
+    try:
+        with db() as con:
+            return {
+                "alipayQrImage": setting(con, "recharge.alipay_qr_image", ""),
+                "wechatQrImage": setting(con, "recharge.wechat_qr_image", ""),
+            }
+    except sqlite3.Error:
+        return {"alipayQrImage": "", "wechatQrImage": ""}
+
+
+def setting_image_dir() -> Path:
+    return ROOT.parent / "frontend" / "public" / "uploads" / "settings"
+
+
+def setting_image_path_from_url(value: str) -> Path | None:
+    prefix = "/uploads/settings/"
+    if not value.startswith(prefix):
+        return None
+    path = (setting_image_dir() / value[len(prefix) :]).resolve()
+    upload_root = setting_image_dir().resolve()
+    try:
+        path.relative_to(upload_root)
+    except ValueError:
+        return None
+    return path
+
+
+def delete_setting_image(value: str) -> None:
+    path = setting_image_path_from_url(value)
+    if path and path.exists() and path.is_file():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def save_setting_image(file_name: str, data_url: str, setting_key: str) -> str:
+    match = re.match(r"^data:(image/(?:png|jpeg|jpg|webp|gif));base64,(.+)$", data_url or "", re.I | re.S)
+    if not match:
+        raise AppError(400, "VALIDATION_FAILED", "Image must be a PNG, JPG, WebP, or GIF data URL")
+    media_type = match.group(1).lower()
+    extension = {
+        "image/png": "png",
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/webp": "webp",
+        "image/gif": "gif",
+    }[media_type]
+    try:
+        image_bytes = base64.b64decode(match.group(2), validate=True)
+    except Exception as exc:
+        raise AppError(400, "VALIDATION_FAILED", "Invalid image data") from exc
+    if not image_bytes:
+        raise AppError(400, "VALIDATION_FAILED", "Image is empty")
+    if len(image_bytes) > 5 * 1024 * 1024:
+        raise AppError(400, "VALIDATION_FAILED", "Image must be 5 MB or smaller")
+
+    safe_stem = re.sub(r"[^a-zA-Z0-9_-]+", "-", setting_key).strip("-")[:80]
+    if not safe_stem:
+        safe_stem = "setting-image"
+    upload_dir = setting_image_dir()
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    for old_file in upload_dir.glob(f"{safe_stem}.*"):
+        if old_file.is_file():
+            try:
+                old_file.unlink()
+            except OSError:
+                pass
+    target = upload_dir / f"{safe_stem}.{extension}"
+    target.write_bytes(image_bytes)
+    return f"/uploads/settings/{target.name}"
 
 
 def verify_turnstile(token: str | None, request: Request) -> None:

@@ -1,0 +1,2 @@
+event: done
+data: {"answer": "", "conversationId": "6a014be5-8b70-832a-98e9-db560b8300ec", "parentMessageId": "client-created-root", "model": "gpt-5-5-thinking", "configId": 1, "configName": "account_1"}

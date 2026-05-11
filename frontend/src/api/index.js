@@ -1,7 +1,16 @@
 const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081/api').replace(/\/$/, '');
+const API_ORIGIN = BASE.replace(/\/api$/, '');
 
 function getToken() {
   return localStorage.getItem('token');
+}
+
+export function resolveApiUrl(url) {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+  if (url.startsWith('/api/')) return `${API_ORIGIN}${url}`;
+  if (url.startsWith('/')) return `${BASE}${url}`;
+  return url;
 }
 
 async function request(path, options = {}) {
@@ -135,6 +144,22 @@ export async function streamWebChatMessage(
     }
     if (event === 'replace' && typeof payload?.text === 'string') {
       handlers.onReplace?.(payload.text);
+      return;
+    }
+    if (event === 'image' && payload) {
+      handlers.onImage?.(payload);
+      return;
+    }
+    if (event === 'image_placeholder' && payload) {
+      handlers.onImagePlaceholder?.(payload);
+      return;
+    }
+    if (event === 'source' && payload) {
+      handlers.onSource?.(payload);
+      return;
+    }
+    if (event === 'sources' && payload) {
+      handlers.onSources?.(Array.isArray(payload) ? payload : payload.sources);
       return;
     }
     if (event === 'done') {
@@ -395,5 +420,26 @@ export function executeAdminSql(sql) {
   return request('/admin/sqlite/sql', {
     method: 'POST',
     body: JSON.stringify({ sql }),
+  });
+}
+
+export function uploadAdminSettingImage({ settingKey, fileName, dataUrl }) {
+  return request('/admin/settings/image', {
+    method: 'POST',
+    body: JSON.stringify({ settingKey, fileName, dataUrl }),
+  });
+}
+
+export function deleteAdminSettingImage(settingKey) {
+  return request('/admin/settings/image/delete', {
+    method: 'POST',
+    body: JSON.stringify({ settingKey }),
+  });
+}
+
+export function creditAdminUserBalance({ email, amount }) {
+  return request('/admin/users/balance-credit', {
+    method: 'POST',
+    body: JSON.stringify({ email, amount }),
   });
 }

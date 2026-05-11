@@ -27,6 +27,7 @@ const promptStarters = [
 const supportedImageTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
 const maxImages = 4;
 const maxImageBytes = 10 * 1024 * 1024;
+const sourcePreviewLimit = 15;
 
 async function loadSession() {
   pageLoading.value = true;
@@ -58,7 +59,7 @@ async function sendMessage() {
   error.value = '';
   loading.value = true;
   messages.value.push({ role: 'user', content, images: outgoingImages });
-  const assistant = reactive({ role: 'assistant', content: '', pending: true, streaming: true });
+  const assistant = reactive({ role: 'assistant', content: '', images: [], sources: [], sourcesExpanded: false, imagePlaceholderTotal: 0, pending: true, streaming: true });
   const streamWriter = createStreamWriter(assistant);
   messages.value.push(assistant);
   await scrollToBottom();
@@ -83,8 +84,23 @@ async function sendMessage() {
       onReplace(text) {
         streamWriter.replace(text);
       },
+      onImage(image) {
+        mergeAssistantImages(assistant, [image]);
+      },
+      onImagePlaceholder(payload) {
+        setAssistantImagePlaceholders(assistant, payload);
+      },
+      onSource(source) {
+        mergeAssistantSources(assistant, [source]);
+      },
+      onSources(sources) {
+        mergeAssistantSources(assistant, sources || []);
+      },
     });
     await streamWriter.finish();
+    mergeAssistantImages(assistant, result?.images || []);
+    mergeAssistantSources(assistant, result?.sources || []);
+    assistant.imagePlaceholderTotal = assistant.images.length;
     assistant.content = assistant.content || result?.answer || '模型没有返回文本。';
     assistant.streaming = false;
     assistant.pending = false;
@@ -109,6 +125,102 @@ async function sendMessage() {
     loading.value = false;
     await scrollToBottom();
   }
+}
+
+function mergeAssistantImages(message, images = []) {
+  for (const image of images) {
+    const normalized = normalizeAssistantImage(image);
+    if (!normalized.previewUrl) continue;
+    if (message.images.some((item) => item.id === normalized.id || item.previewUrl === normalized.previewUrl)) {
+      continue;
+    }
+    message.images.push(normalized);
+    if (message.imagePlaceholderTotal && message.images.length > message.imagePlaceholderTotal) {
+      message.imagePlaceholderTotal = message.images.length;
+    }
+    message.pending = false;
+  }
+  scrollToBottom();
+}
+
+function setAssistantImagePlaceholders(message, payload = {}) {
+  const count = Math.max(0, Math.min(Number(payload.count || 0), 8));
+  if (count > (message.imagePlaceholderTotal || 0)) {
+    message.imagePlaceholderTotal = count;
+    message.pending = false;
+    scrollToBottom();
+  }
+}
+
+function mergeAssistantSources(message, sources = []) {
+  for (const source of sources) {
+    const normalized = normalizeAssistantSource(source);
+    if (!normalized.url) continue;
+    if (message.sources.some((item) => item.url === normalized.url)) {
+      continue;
+    }
+    message.sources.push(normalized);
+  }
+}
+
+function normalizeAssistantSource(source = {}) {
+  const url = api.resolveApiUrl(source.url || '');
+  return {
+    title: source.title || source.attribution || source.url || 'Source',
+    url,
+    attribution: source.attribution || '',
+    snippet: source.snippet || '',
+  };
+}
+
+function visibleSources(sources = [], expanded = false) {
+  return expanded ? sources : sources.slice(0, sourcePreviewLimit);
+}
+
+function hasHiddenSources(sources = [], expanded = false) {
+  return !expanded && sources.length > sourcePreviewLimit;
+}
+
+function imagePlaceholderCount(message = {}) {
+  if (message.role !== 'assistant' || message.error) return 0;
+  const count = Math.max(message.imagePlaceholderTotal || 0, detectImagePlaceholderCount(message.content));
+  return Math.max(0, count - (message.images?.length || 0));
+}
+
+function detectImagePlaceholderCount(content = '') {
+  const text = String(content || '');
+  if (!text.includes('\uE200')) return 0;
+
+  let count = 0;
+  const groups = text.matchAll(/\uE200image_group\uE202([\s\S]*?)(?:\uE201|$)/g);
+  for (const match of groups) {
+    const payload = match[1] || '';
+    const refs = payload.match(/"image_refs"\s*:\s*\[([\s\S]*?)\]/);
+    if (refs) {
+      const refCount = (refs[1].match(/"[^"]+"/g) || []).length;
+      count += refCount || 1;
+    } else {
+      count += 1;
+    }
+  }
+
+  if (!count && /\uE200image[_\w-]*/.test(text)) {
+    count = 1;
+  }
+
+  return Math.min(count, 8);
+}
+
+function normalizeAssistantImage(image = {}) {
+  const url = api.resolveApiUrl(image.url || image.previewUrl || image.data || '');
+  const id = image.id || image.fileId || url || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return {
+    id,
+    name: image.name || image.title || 'image',
+    source: image.source || 'assistant',
+    pageUrl: image.pageUrl || image.page_url || '',
+    previewUrl: url,
+  };
 }
 
 function createStreamWriter(message) {
@@ -276,7 +388,16 @@ function readImageSize(src) {
 }
 
 function renderMessageContent(content = '') {
-  return renderMarkdownBlocks(String(content).replace(/\r\n/g, '\n').trim());
+  const visibleContent = cleanStreamArtifacts(String(content).replace(/\r\n/g, '\n')).trim();
+  return renderMarkdownBlocks(visibleContent);
+}
+
+function cleanStreamArtifacts(content = '') {
+  return String(content)
+    .replace(/\uE200image_group\uE202[\s\S]*?(?:\uE201|$)/g, '')
+    .replace(/\uE200cite\uE202[\s\S]*?(?:\uE201|$)/g, '')
+    .replace(/\uE200[\s\S]*?(?:\uE201|$)/g, '')
+    .replace(/[\uE201\uE202]/g, '');
 }
 
 function renderMarkdownBlocks(markdown) {
@@ -612,20 +733,56 @@ onMounted(loadSession);
           <div class="message-body">
             <div v-if="message.role === 'assistant'" class="message-name">ChatGPT</div>
             <div class="bubble">
-              <div v-if="message.images?.length" class="message-images">
-                <img
+              <div v-if="message.images?.length || imagePlaceholderCount(message)" class="message-images">
+                <a
                   v-for="image in message.images"
                   :key="image.id"
-                  :src="image.previewUrl"
-                  :alt="image.name"
-                />
+                  :href="image.pageUrl || image.previewUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    :src="image.previewUrl"
+                    :alt="image.name"
+                  />
+                </a>
+                <div
+                  v-for="index in imagePlaceholderCount(message)"
+                  :key="`image-placeholder-${index}`"
+                  class="image-placeholder"
+                  aria-label="图片加载中"
+                >
+                  <span></span>
+                </div>
               </div>
-              <span v-if="message.pending" class="typing">
+              <span v-if="message.pending && !message.images?.length && !imagePlaceholderCount(message)" class="typing">
                 <i></i>
                 <i></i>
                 <i></i>
               </span>
               <span v-else class="rendered-content" v-html="renderMessageContent(message.content)"></span>
+              <div v-if="message.role === 'assistant' && message.sources?.length" class="message-sources">
+                <a
+                  v-for="source in visibleSources(message.sources, message.sourcesExpanded)"
+                  :key="source.url"
+                  :href="source.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :title="source.snippet || source.title"
+                >
+                  <span>{{ source.attribution || source.title }}</span>
+                </a>
+                <button
+                  v-if="hasHiddenSources(message.sources, message.sourcesExpanded)"
+                  type="button"
+                  class="source-more"
+                  title="显示全部来源"
+                  aria-label="显示全部来源"
+                  @click="message.sourcesExpanded = true"
+                >
+                  ...
+                </button>
+              </div>
             </div>
           </div>
         </article>
@@ -1136,13 +1293,111 @@ onMounted(loadSession);
   margin-bottom: 8px;
 }
 
-.message-images img {
+.message-images a {
+  display: block;
+  min-width: 0;
+}
+
+.message-images img,
+.image-placeholder {
   width: 100%;
   aspect-ratio: 4 / 3;
-  object-fit: cover;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: #fff;
+}
+
+.message-images img {
+  object-fit: cover;
+}
+
+.message-sources {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.message-sources a,
+.source-more {
+  max-width: 220px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #f7f7f8;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.source-more {
+  cursor: pointer;
+  font-weight: 700;
+  min-width: 34px;
+}
+
+.message-sources a:hover,
+.source-more:hover {
+  background: #f1f1f1;
+  color: #202123;
+}
+
+.message-sources span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-placeholder {
+  position: relative;
+  overflow: hidden;
+  background: #f4f4f4;
+}
+
+.image-placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  transform: translateX(-100%);
+  animation: image-placeholder-shimmer 1.2s infinite;
+}
+
+.image-placeholder span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 26px;
+  border: 2px solid rgba(107, 114, 128, 0.38);
+  border-radius: 7px;
+  transform: translate(-50%, -50%);
+}
+
+.image-placeholder span::before {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(107, 114, 128, 0.45);
+}
+
+.image-placeholder span::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  height: 8px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.44) 0 48%, transparent 49%),
+    linear-gradient(45deg, transparent 0 42%, rgba(107, 114, 128, 0.34) 43% 100%);
 }
 
 .assistant.error .bubble {
@@ -1308,6 +1563,10 @@ onMounted(loadSession);
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes image-placeholder-shimmer {
+  to { transform: translateX(100%); }
 }
 
 @keyframes pulse {

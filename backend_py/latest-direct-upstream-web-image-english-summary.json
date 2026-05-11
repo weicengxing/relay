@@ -1,0 +1,83 @@
+{
+  "status": 200,
+  "elapsed_seconds": 8.4,
+  "saved": "backend_py\\latest-direct-upstream-web-image-english-test.sse",
+  "error_preview": null,
+  "event_count": 107,
+  "unique_event_types": [
+    "input_message",
+    "message_marker",
+    "message_stream_complete",
+    "resume_conversation_token",
+    "server_ste_metadata",
+    "title_generation",
+    "url_moderation"
+  ],
+  "answer_preview": "Here’s a **direct publicly‑accessible NASA nebula image** from NASA’s official site — *no AI generation, no embeds from social platforms*:\n\n🔭 **Helix Nebula (C63, NGC 7293)**  \n📸 **Direct image URL:**  \nhttps://science.nasa.gov/asset/hubble/c63-1b/ citeturn0search11\n\nThis is an official NASA Science image of the **Helix Nebula**, a striking planetary nebula often called the *“Eye of God”* due to its appearance. It was captured by the Hubble Space Telescope and is publicly available from NASA’s website. citeturn0search11\n\nIf you want **another nebula image URL** (e.g., Orion or Carina), let me know!",
+  "answer_length": 611,
+  "contains_markdown_image": false,
+  "answer_urls": [
+    "https://science.nasa.gov/asset/hubble/c63-1b/"
+  ],
+  "url_hit_count": 30,
+  "url_hits_preview": [
+    "https://science.nasa.gov/image-detail/38451843462-a9098ae0eb-o/",
+    "https://www.nasa.gov/image-article/uncovering-veil-nebula/",
+    "https://science.nasa.gov/asset/hubble/ctio-image-of-carina-nebula/",
+    "https://science.nasa.gov/asset/hubble/the-great-orion-nebula/",
+    "https://science.nasa.gov/image-detail/ant-nebula/",
+    "https://www.nasa.gov/image-article/comets-kick-up-dust-helix-nebula/",
+    "https://science.nasa.gov/image-detail/9697_full_jpg/",
+    "https://science.nasa.gov/image-detail/veil-nebula",
+    "https://www.nasa.gov/image-article/cats-eye-nebula/",
+    "https://science.nasa.gov/photojournal/planetary-nebula-ngc-7293-also-known-as-the-helix-nebula/",
+    "https://science.nasa.gov/asset/hubble/carina-nebula/",
+    "https://science.nasa.gov/image-detail/c63-1b/",
+    "https://science.nasa.gov/asset/hubble/the-egg-nebula/",
+    "https://commons.wikimedia.org/wiki/File%3AM57_The_Ring_Nebula.JPG",
+    "https://science.nasa.gov/asset/hubble/vlt-image-of-dumbbell-nebula/"
+  ],
+  "image_hit_count": 49,
+  "image_hits_preview": [
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"3135e97d-c5f5-4207-9ae3-7a931fde30db\", \"author\": {\"role\": \"user\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778470722.6870706, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"Search the web for a publicly accessible NASA nebula photo and send the actual image or direct image URL. Do not generate an image. Do not use DALL-E or image generation. Return the found web image.\"]}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"developer_mode_connector_ids\": [], \"selected_github_repos\": [], \"selected_sources\": [], \"serialization_metadata\": {\"custom_symbol_offsets\": []}, \"request_id\": \"15cb20ae-4db3-4028-b4fa-ae66cffd8e21\", \"message_source\": null, \"turn_exchange_id\": \"030b5d46-5223-47a7-a0f1-30889559b927\", \"resolved_model_slug\": \"i-5-mini-m\", \"model_switcher_deny\": []}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a014f44-5300-8325-ac1a-fd6e0c5350d6\", \"error\": null, \"error_code\": null}, \"c\": 2}"
+    },
+    {
+      "type": "input_message",
+      "preview": "{\"type\": \"input_message\", \"input_message\": {\"id\": \"3135e97d-c5f5-4207-9ae3-7a931fde30db\", \"author\": {\"role\": \"user\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778470722.6870706, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"Search the web for a publicly accessible NASA nebula photo and send the actual image or direct image URL. Do not generate an image. Do not use DALL-E or image generation. Return the found web image.\"]}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"developer_mode_connector_ids\": [], \"selected_all_github_repos\": false, \"selected_connector_ids\": [], \"selected_github_repos\": [], \"selected_sources\": [], \"selected_sync_knowledge_store_ids\": [], \"serialization_metadata\": {\"custom_symbol_offsets\": []}, \"request_id\": \"15cb20ae-4db3-4028-b4fa-ae66cffd8e21\", \"message_source\": null, \"turn_exchange_id\": \"030b5d46-5223-47a7-a0f1-30889559b927\", \"useragent\": {\"client_type\": \"android\", \"is_mobile\": true, \"is_mobile_app\": true, \"is_desktop_app\": false, \"is_native_app\": true, \"is_native_app_apple\": false, \"is_mobile_app_ios\": false, \"is_desktop_app_macos\": false, \"is_aura_app_macos\": false, \"is_aura_web\": false, \"is_s"
+    },
+    {
+      "type": "message_marker",
+      "preview": "{\"type\": \"message_marker\", \"conversation_id\": \"6a014f44-5300-8325-ac1a-fd6e0c5350d6\", \"message_id\": \"6a2488bd-533e-4201-83cb-81ac97946a5f\", \"marker\": \"search_start\", \"event\": \"first\"}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"6a2488bd-533e-4201-83cb-81ac97946a5f\", \"author\": {\"role\": \"assistant\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778470726.9561424, \"update_time\": null, \"content\": {\"content_type\": \"code\", \"language\": \"unknown\", \"response_format_name\": null, \"text\": \"search(\\\"Search the web for a publicly accessible NASA nebula photo and send the actual image or direct image URL. Do not generate an image. Do not use DALL-E or image generation. Return the found web image.\\\")\"}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"citations\": [], \"content_references\": [], \"resolved_model_slug\": \"i-5-mini-m\", \"request_id\": \"15cb20ae-4db3-4028-b4fa-ae66cffd8e21\", \"message_type\": \"next\", \"turn_exchange_id\": \"030b5d46-5223-47a7-a0f1-30889559b927\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"53ab5869-1ef2-4767-a12f-fabe0ec3db7e\", \"model_switcher_deny\": []}, \"recipient\": \"web\", \"channel\": null}, \"conversation_id\": \"6a014f44-5300-8325-ac1a-fd6e0c5350d6\", \"error\": null, \"error_code\": null}, \"c\": 4}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"beb7b3ac-6666-4b77-a53b-7927147e4fd4\", \"author\": {\"role\": \"tool\", \"name\": \"web.run\", \"metadata\": {\"sonicberry_model_id\": \"alpha.sonic_thinky_v1\", \"real_author\": \"tool:web\", \"source\": \"sonic_tool\"}}, \"create_time\": 1778470727.4972022, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"\"]}, \"status\": \"finished_successfully\", \"end_turn\": false, \"weight\": 1.0, \"metadata\": {\"search_model_queries\": {\"type\": \"search_model_queries\", \"queries\": [\"NASA nebula photo publicly accessible NASA site nebula image\", \"site:nasa.gov nebula photo NASA asteroid nebula image public\"]}, \"search_turns_count\": 1, \"search_source\": \"composer_auto\", \"client_reported_search_source\": \"composer_auto\", \"request_id\": \"15cb20ae-4db3-4028-b4fa-ae66cffd8e21\", \"message_type\": \"next\", \"turn_exchange_id\": \"030b5d46-5223-47a7-a0f1-30889559b927\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"6a2488bd-533e-4201-83cb-81ac97946a5f\", \"model_switcher_deny\": []}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a014f44-5300-8325-ac1a-fd6e0c5350d6\", \"error\": null, \"error_code\": null}, \"c\": 5}"
+    },
+    {
+      "type": "title_generation",
+      "preview": "{\"type\": \"title_generation\", \"title\": \"NASA Nebula Image Request\", \"conversation_id\": \"6a014f44-5300-8325-ac1a-fd6e0c5350d6\"}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"36af30a7-b69c-4877-b258-48bec36cafa5\", \"author\": {\"role\": \"tool\", \"name\": \"web.run\", \"metadata\": {\"sonicberry_model_id\": \"alpha.sonic_thinky_v1\", \"real_author\": \"tool:web\", \"source\": \"sonic_tool\"}}, \"create_time\": 1778470727.4947324, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"\"]}, \"status\": \"in_progress\", \"end_turn\": false, \"weight\": 1.0, \"metadata\": {\"search_result_groups\": [{\"type\": \"search_result_group\", \"domain\": \"science.nasa.gov\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://science.nasa.gov/image-detail/38451843462-a9098ae0eb-o/\", \"title\": \"Orion Nebula - NASA Science\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 0}, \"pub_date\": 1690243200.0, \"attribution\": \"science.nasa.gov\"}]}], \"debug_sonic_thread_id\": \"thread_6a014f4789408325a8f2600ad1ffb3ae\", \"search_turns_count\": 1, \"search_source\": \"composer_auto\", \"client_reported_search_source\": \"composer_auto\", \"request_id\": \"15cb20ae-4db3-4028-b4fa-ae66cffd8e21\", \"message_type\": \"next\", \"turn_exchange_id\": \"030b5d46-5223-47a7-a0f1-30889559b927\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"beb7b3ac-6666-4b77-a53b-"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups\", \"o\": \"append\", \"v\": [{\"type\": \"search_result_group\", \"domain\": \"www.nasa.gov\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://www.nasa.gov/image-article/uncovering-veil-nebula/\", \"title\": \"Uncovering the Veil (Nebula) - NASA\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 1}, \"pub_date\": 1339459200.0, \"attribution\": \"www.nasa.gov\"}]}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/0/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://science.nasa.gov/asset/hubble/ctio-image-of-carina-nebula/\", \"title\": \"CTIO Image of Carina Nebula - NASA Science\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 2}, \"pub_date\": 1177372800.0, \"attribution\": \"science.nasa.gov\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result\", \"url\": \"https://science.nasa.gov/asset/hubble/the-great-orion-nebula/\", \"title\": \"The Great Orion Nebula - NASA Science\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 3}, \"pub_date\": 758505600.0, \"attribution\": \"science.nasa.gov\"}]}"
+    }
+  ]
+}

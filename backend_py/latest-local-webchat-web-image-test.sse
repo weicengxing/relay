@@ -1,0 +1,10 @@
+event: delta
+data: {"delta": "Here is a **publicly accessible NASA nebula image** you can use — this is a direct image"}
+event: delta
+data: {"delta": " URL from NASA’s *Science* site showing the **Orion Nebula** (M42), captured by the **Hubble Space Telescope**: citeturn1"}
+event: delta
+data: {"delta": "search1\n\n📷 **Orion Nebula (1024×1024 PNG/JPG) – NASA:**  \nhttps://science.nasa.gov/image-detail/orion-nebula-xlarge_web/ citeturn1search1\n\nThis URL points"}
+event: delta
+data: {"delta": " to the high‑resolution **nebula photo itself** hosted on NASA’s official site. citeturn1search1"}
+event: done
+data: {"answer": "Here is a **publicly accessible NASA nebula image** you can use — this is a direct image URL from NASA’s *Science* site showing the **Orion Nebula** (M42), captured by the **Hubble Space Telescope**: citeturn1search1\n\n📷 **Orion Nebula (1024×1024 PNG/JPG) – NASA:**  \nhttps://science.nasa.gov/image-detail/orion-nebula-xlarge_web/ citeturn1search1\n\nThis URL points to the high‑resolution **nebula photo itself** hosted on NASA’s official site. citeturn1search1", "conversationId": "6a014f5d-b230-8332-b8c6-7ad726978d71", "parentMessageId": "37636c03-d248-4c42-90f4-25bf1428ee87", "model": "gpt-4o", "configId": 2, "configName": "account_2"}

@@ -25,6 +25,15 @@ const sqlError = ref('');
 const maintenance = ref({ writeDisabled: false });
 const maintenanceLoading = ref(false);
 const cellEdit = ref(null);
+const settingImageInput = ref(null);
+const settingImageTarget = ref(null);
+const uploadingSettingImage = ref(false);
+const deletingSettingImage = ref(false);
+const balanceEmail = ref('');
+const balanceAmount = ref('');
+const balanceLoading = ref(false);
+const balanceResult = ref('');
+const balanceError = ref('');
 
 const currentTable = computed(() => tables.value.find((table) => table.name === selectedTable.value));
 const pageStart = computed(() => (total.value === 0 ? 0 : offset.value + 1));
@@ -300,6 +309,97 @@ function columnHint(column) {
   }
   return parts.join(' | ');
 }
+
+function canUploadSettingImage(row, column) {
+  return (
+    selectedTable.value === 'app_settings' &&
+    column.name === 'setting_value' &&
+    ['recharge.alipay_qr_image', 'recharge.wechat_qr_image'].includes(row.setting_key)
+  );
+}
+
+function hasSettingImage(row) {
+  return typeof row.setting_value === 'string' && row.setting_value.startsWith('/uploads/settings/');
+}
+
+function openSettingImageUpload(row) {
+  if (uploadingSettingImage.value || deletingSettingImage.value) return;
+  settingImageTarget.value = row;
+  settingImageInput.value?.click();
+}
+
+async function handleSettingImageSelected(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file || !settingImageTarget.value) return;
+  if (!file.type.startsWith('image/')) {
+    error.value = 'Please choose an image file.';
+    return;
+  }
+  uploadingSettingImage.value = true;
+  error.value = '';
+  try {
+    const data = await api.uploadAdminSettingImage({
+      settingKey: settingImageTarget.value.setting_key,
+      fileName: file.name,
+      dataUrl: await fileToDataUrl(file),
+    });
+    settingImageTarget.value.setting_value = data.settingValue;
+    settingImageTarget.value.updated_at = new Date().toISOString();
+  } catch (err) {
+    error.value = err.message || 'Image upload failed';
+  } finally {
+    uploadingSettingImage.value = false;
+    settingImageTarget.value = null;
+  }
+}
+
+async function deleteSettingImage(row) {
+  if (uploadingSettingImage.value || deletingSettingImage.value || !hasSettingImage(row)) return;
+  if (!window.confirm('Delete this image and clear the setting value?')) return;
+  deletingSettingImage.value = true;
+  error.value = '';
+  try {
+    const data = await api.deleteAdminSettingImage(row.setting_key);
+    row.setting_value = data.settingValue;
+    row.updated_at = new Date().toISOString();
+  } catch (err) {
+    error.value = err.message || 'Image delete failed';
+  } finally {
+    deletingSettingImage.value = false;
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Unable to read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function creditBalance() {
+  balanceError.value = '';
+  balanceResult.value = '';
+  const amount = Number(balanceAmount.value);
+  if (!balanceEmail.value.trim() || !Number.isFinite(amount) || amount <= 0) {
+    balanceError.value = 'Email and a positive amount are required.';
+    return;
+  }
+  balanceLoading.value = true;
+  try {
+    const data = await api.creditAdminUserBalance({ email: balanceEmail.value, amount });
+    balanceResult.value = `${data.email} +${Number(data.creditedAmount || 0).toFixed(2)}$, balance ${Number(data.balance || 0).toFixed(2)}$`;
+    balanceEmail.value = '';
+    balanceAmount.value = '';
+    if (selectedTable.value === 'users') await loadRows();
+  } catch (err) {
+    balanceError.value = err.message || 'Balance update failed';
+  } finally {
+    balanceLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -343,6 +443,22 @@ function columnHint(column) {
     </header>
 
     <div v-if="error" class="error-bar">{{ error }}</div>
+
+    <section class="balance-panel">
+      <div>
+        <h2>用户余额充值</h2>
+        <p>输入人民币金额，系统会按金额 × 10 增加用户余额。</p>
+      </div>
+      <form class="balance-form" @submit.prevent="creditBalance">
+        <input v-model="balanceEmail" type="email" placeholder="用户邮箱" />
+        <input v-model="balanceAmount" type="number" min="0.01" step="0.01" placeholder="金额" />
+        <button class="primary-btn" type="submit" :disabled="balanceLoading">
+          {{ balanceLoading ? 'Saving...' : '增加余额' }}
+        </button>
+      </form>
+      <div v-if="balanceResult" class="success-bar">{{ balanceResult }}</div>
+      <div v-if="balanceError" class="error-bar balance-error">{{ balanceError }}</div>
+    </section>
 
     <section class="sql-panel">
       <div class="sql-head">
@@ -471,6 +587,28 @@ function columnHint(column) {
                     @keydown.esc.prevent="cancelCellEdit"
                     @blur="commitCellEdit(row, column)"
                   >
+                  <div v-else-if="canUploadSettingImage(row, column)" class="setting-value-cell">
+                    <span>{{ formatValue(row[column.name]) }}</span>
+                    <button
+                      class="mini-upload-btn"
+                      type="button"
+                      :disabled="uploadingSettingImage || deletingSettingImage"
+                      title="Upload image and save relative URL"
+                      @click.stop="openSettingImageUpload(row)"
+                    >
+                      Upload
+                    </button>
+                    <button
+                      v-if="hasSettingImage(row)"
+                      class="mini-upload-btn danger"
+                      type="button"
+                      :disabled="uploadingSettingImage || deletingSettingImage"
+                      title="Delete image and clear relative URL"
+                      @click.stop="deleteSettingImage(row)"
+                    >
+                      Delete
+                    </button>
+                  </div>
                   <span v-else>{{ formatValue(row[column.name]) }}</span>
                 </td>
                 <td class="actions-cell">
@@ -523,6 +661,14 @@ function columnHint(column) {
         </section>
       </div>
     </transition>
+
+    <input
+      ref="settingImageInput"
+      class="hidden-file"
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif"
+      @change="handleSettingImageSelected"
+    />
   </div>
 </template>
 
@@ -639,6 +785,68 @@ button:disabled {
   color: var(--danger);
   font-size: 13px;
   font-weight: 700;
+}
+
+.success-bar {
+  padding: 10px 12px;
+  border: 1px solid rgba(34, 197, 94, 0.18);
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.balance-panel {
+  margin-bottom: 16px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.balance-panel h2 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.balance-panel p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.balance-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 120px auto;
+  gap: 8px;
+}
+
+.balance-form input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.balance-form input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.balance-panel .success-bar,
+.balance-error {
+  grid-column: 2;
+  margin: 0;
 }
 
 .sql-panel {
@@ -939,6 +1147,51 @@ button:disabled {
   box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
+.setting-value-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.setting-value-cell span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-upload-btn {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mini-upload-btn:hover:not(:disabled) {
+  background: var(--primary-soft);
+  border-color: var(--primary-glow);
+}
+
+.mini-upload-btn.danger {
+  color: var(--danger);
+}
+
+.mini-upload-btn.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.hidden-file {
+  display: none;
+}
+
 .actions-col,
 .actions-cell {
   width: 92px;
@@ -1026,6 +1279,16 @@ button:disabled {
 
   .admin-shell {
     grid-template-columns: 1fr;
+  }
+
+  .balance-panel,
+  .balance-form {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-panel .success-bar,
+  .balance-error {
+    grid-column: 1;
   }
 
   .table-list {

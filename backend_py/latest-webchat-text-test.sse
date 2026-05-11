@@ -1,0 +1,6 @@
+event: delta
+data: {"delta": "OK — what"}
+event: delta
+data: {"delta": " would you like to do next?"}
+event: done
+data: {"answer": "OK — what would you like to do next?", "conversationId": "6a014b9b-5664-8333-a9e8-baf5b40122ef", "parentMessageId": "c66c2d0e-fd6a-4e75-9201-257953a7371a", "model": "gpt-5-5-thinking", "configId": 2, "configName": "account_2"}

@@ -1,0 +1,4 @@
+event: delta
+data: {"delta": "I’m not sure what you meant. Could you resend your question or tell me what you’d like help with?"}
+event: done
+data: {"answer": "I’m not sure what you meant. Could you resend your question or tell me what you’d like help with?", "conversationId": "6a014b73-bd48-832f-bcc2-7326a87635ac", "parentMessageId": "74fa165b-cf54-40aa-8541-62fd637a6195", "model": "gpt-5-5-thinking", "configId": 2, "configName": "account_2"}

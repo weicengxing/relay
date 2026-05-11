@@ -1,0 +1,15 @@
+event: delta
+data: {"delta": "I’m not sure what"}
+
+event: delta
+data: {"delta": " you meant."}
+
+event: delta
+data: {"delta": " Could you re"}
+
+event: delta
+data: {"delta": "phrase your question or send the details again?"}
+
+event: done
+data: {"answer": "I’m not sure what you meant. Could you rephrase your question or send the details again?", "images": [], "conversationId": "6a017cc9-e5fc-832f-869d-4b35fad5f799", "parentMessageId": "f9702f33-fb06-4ac6-8bba-b53922b5f3c7", "model": "gpt-5-5-thinking", "configId": 2, "configName": "account_2"}
+

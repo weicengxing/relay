@@ -1,0 +1,36 @@
+{
+  "status": 200,
+  "elapsed_seconds": 5.9,
+  "saved": "backend_py\\latest-direct-upstream-web-image-test.sse",
+  "error_preview": null,
+  "event_count": 35,
+  "unique_event_types": [
+    "input_message",
+    "message_marker",
+    "message_stream_complete",
+    "resume_conversation_token",
+    "server_ste_metadata",
+    "title_generation"
+  ],
+  "answer_preview": "It looks like your message contains a lot of question marks and mentions NASA multiple times. Could you clarify what you want to know about NASA? For example, are you asking about:  \n\n- NASA’s missions or programs  \n- Recent news from NASA  \n- NASA’s history or achievements  \n- A specific spacecraft or project  \n\nOnce I know, I can give a clear and detailed answer.",
+  "answer_length": 367,
+  "contains_markdown_image": false,
+  "answer_urls": [],
+  "url_hit_count": 0,
+  "url_hits_preview": [],
+  "image_hit_count": 3,
+  "image_hits_preview": [
+    {
+      "type": "title_generation",
+      "preview": "{\"type\": \"title_generation\", \"title\": \"NASA Información\", \"conversation_id\": \"6a014f2d-e9f8-8331-a926-4663db1489af\"}"
+    },
+    {
+      "type": "title_generation",
+      "preview": "{\"type\": \"title_generation\", \"title\": \"NASA Inquiry Clarification\", \"conversation_id\": \"6a014f2d-e9f8-8331-a926-4663db1489af\"}"
+    },
+    {
+      "type": "server_ste_metadata",
+      "preview": "{\"type\": \"server_ste_metadata\", \"metadata\": {\"conduit_prewarmed\": false, \"plan_type\": \"team\", \"plan_type_bucket\": \"teams\", \"user_agent\": \"app_android\", \"service\": null, \"tool_name\": null, \"tool_invoked\": false, \"fast_convo\": true, \"warmup_state\": \"new\", \"is_first_turn\": true, \"cluster_region\": \"germanynorth\", \"model_slug\": \"i-5-mini-m\", \"region\": null, \"is_multimodal\": null, \"did_auto_switch_to_reasoning\": false, \"auto_switcher_race_winner\": null, \"is_autoswitcher_enabled\": false, \"is_search\": null, \"did_prompt_contain_image\": false, \"search_tool_call_count\": null, \"search_tool_query_types\": null, \"message_id\": \"f9c6efea-716b-4896-b9b9-0d9b98d1877b\", \"request_id\": \"4d9dc660-5d2d-419b-9439-9aa31afda224\", \"turn_exchange_id\": \"fe8cbbc7-aa62-4e92-9559-9214adc59720\", \"turn_trace_id\": null, \"a32e6ebcb\": 1, \"resume_with_websockets\": true, \"low_turn_topic_ttl\": false, \"streaming_async_status\": false, \"replace_stream_status\": true, \"temporal_conversation_turn\": false, \"pro_mode_turn_topic_strea"
+    }
+  ]
+}

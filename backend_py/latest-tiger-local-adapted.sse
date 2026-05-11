@@ -1,0 +1,12 @@
+event: delta
+data: {"delta": "Whoa"}
+event: delta
+data: {"delta": "—that’s a lot"}
+event: delta
+data: {"delta": " of question marks! 😅  \n\nCan you"}
+event: delta
+data: {"delta": " clarify what you mean or what you’re asking about? Are you"}
+event: delta
+data: {"delta": " confused about something, looking for an explanation, or just testing me?"}
+event: done
+data: {"answer": "Whoa—that’s a lot of question marks! 😅  \n\nCan you clarify what you mean or what you’re asking about? Are you confused about something, looking for an explanation, or just testing me?", "images": [], "conversationId": "6a01731c-b744-8333-9f26-dd166059c8e4", "parentMessageId": "b6693881-908b-46f8-90d5-0250d3720ac2", "model": "gpt-4o", "configId": 2, "configName": "account_2"}

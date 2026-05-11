@@ -1,0 +1,2 @@
+event: error
+data: {"message": "{\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }"}

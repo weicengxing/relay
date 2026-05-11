@@ -1,0 +1,98 @@
+{
+  "status": 200,
+  "err": null,
+  "elapsed": 11.5,
+  "answer": "Here are several **actual tiger photos** from the web — not AI‑generated, and you can see them directly below:\n\nimage_group{\"layout\":\"carousel\",\"image_refs\":[\"turn0image0\",\"turn0image1\",\"turn0image2\",\"turn0image3\",\"turn0image4\",\"turn0image5\",\"turn0image6\",\"turn0image7\",\"turn0image8\",\"turn0image9\",\"turn0image10\",\"turn0image11\",\"turn0image12\"]}\n\nThese images show **tigers in various poses and settings**, mostly in natural or wildlife contexts. citeturn0search0turn0search1\n\nIf you want **specific types of tiger photos** (e.g., cubs, white tigers, Siberian tigers, or royalty‑free images you can download), let me know!",
+  "unique_types": [
+    "input_message",
+    "message_marker",
+    "message_stream_complete",
+    "resume_conversation_token",
+    "server_ste_metadata",
+    "title_generation",
+    "url_moderation"
+  ],
+  "interesting_count": 62,
+  "interesting": [
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"60b43439-f89c-4b8a-b608-5c129ebbaf11\", \"author\": {\"role\": \"user\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778479970.988479, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"Search the web for several tiger photos and send the actual images. Do not generate images. Return images, not only text links.\"]}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"developer_mode_connector_ids\": [], \"selected_github_repos\": [], \"selected_sources\": [], \"serialization_metadata\": {\"custom_symbol_offsets\": []}, \"request_id\": \"5e2bd045-67fd-4e46-a087-437e8b7b769a\", \"message_source\": null, \"turn_exchange_id\": \"65dd3e5f-1c46-445d-8567-3483012865ea\", \"resolved_model_slug\": \"i-5-mini-m\", \"model_switcher_deny\": []}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a017364-d804-8332-9cf3-457dcfd3b16e\", \"error\": null, \"error_code\": null}, \"c\": 2}"
+    },
+    {
+      "type": "input_message",
+      "preview": "{\"type\": \"input_message\", \"input_message\": {\"id\": \"60b43439-f89c-4b8a-b608-5c129ebbaf11\", \"author\": {\"role\": \"user\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778479970.988479, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"Search the web for several tiger photos and send the actual images. Do not generate images. Return images, not only text links.\"]}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"developer_mode_connector_ids\": [], \"selected_all_github_repos\": false, \"selected_connector_ids\": [], \"selected_github_repos\": [], \"selected_sources\": [], \"selected_sync_knowledge_store_ids\": [], \"serialization_metadata\": {\"custom_symbol_offsets\": []}, \"request_id\": \"5e2bd045-67fd-4e46-a087-437e8b7b769a\", \"message_source\": null, \"turn_exchange_id\": \"65dd3e5f-1c46-445d-8567-3483012865ea\", \"useragent\": {\"client_type\": \"android\", \"is_mobile\": true, \"is_mobile_app\": true, \"is_desktop_app\": false, \"is_native_app\": true, \"is_native_app_apple\": false, \"is_mobile_app_ios\": false, \"is_desktop_app_macos\": false, \"is_aura_app_macos\": false, \"is_aura_web\": false, \"is_sora_ios\": false, \"is_agora_ios\": false, \"is_agora_android\": false, \"is_desktop_app_windows\": false, \"is_electron_app\": false, \"is_mobile_app_android\": true, \"is_mobile_web\": false, \"is_mobile_web_ios\": false, \"is_mobile_web_android\": false, \"is_ios\": false, \"is_android\": true, \"is_macos\": false, \"is_windows\": false, \"is_linux\": false, \"is_chatgpt_client\": true, \"is_moshi_client\": false, \"is_sora_client\": false, \"is_agora_client\": false, \"is_browserbased_app\": false, \"is_chatgpt_api\": false, \"is_slack\": false, \"is_chatkit_web\": false, \"is_chatkit_synthetic\": false, \"is_kakao_talk\": false, \"is_codex_desktop\": false, \"is_offline_caching\": false, \"app_version\": \"1.2026.118\", \"build_number\": 2611813, \"user_agent\": \"chatgpt/1.2026.118 (android 14; sm-s901u; build 2611813)\", \"app_environment\": null, \"os_version\": \"Android 14\", \"device_model\": \"SM-S901U\", \"user_client_type\": \"android_app\"}, \"paragen_stream_type\": \"default\", \"resolved_model_slug\": \"i-5-mini-m\", \"parent_id\": \"c37d2a29-848b-4fb2-a6c7-47b438243835\"}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a017364-d804-8332-9cf3-457dcfd3b16e\"}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"ce436f48-bea3-488c-8090-568010d2b03d\", \"author\": {\"role\": \"assistant\", \"name\": null, \"metadata\": {}}, \"create_time\": 1778479973.5764632, \"update_time\": null, \"content\": {\"content_type\": \"code\", \"language\": \"unknown\", \"response_format_name\": null, \"text\": \"search(\\\"Search the web for several tiger photos and send the actual images. Do not generate images. Return images, not only text links.\\\")\"}, \"status\": \"finished_successfully\", \"end_turn\": null, \"weight\": 1.0, \"metadata\": {\"citations\": [], \"content_references\": [], \"resolved_model_slug\": \"i-5-mini-m\", \"request_id\": \"5e2bd045-67fd-4e46-a087-437e8b7b769a\", \"message_type\": \"next\", \"turn_exchange_id\": \"65dd3e5f-1c46-445d-8567-3483012865ea\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"2b9ff551-a971-4af2-9d9a-3c0ed9021233\", \"model_switcher_deny\": []}, \"recipient\": \"web\", \"channel\": null}, \"conversation_id\": \"6a017364-d804-8332-9cf3-457dcfd3b16e\", \"error\": null, \"error_code\": null}, \"c\": 4}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"3dbdc47b-c604-4236-8b49-5adca0739295\", \"author\": {\"role\": \"tool\", \"name\": \"web.run\", \"metadata\": {\"sonicberry_model_id\": \"alpha.sonic_thinky_v1\", \"real_author\": \"tool:web\", \"source\": \"sonic_tool\"}}, \"create_time\": 1778479974.381973, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"\"]}, \"status\": \"finished_successfully\", \"end_turn\": false, \"weight\": 1.0, \"metadata\": {\"search_model_queries\": {\"type\": \"search_model_queries\", \"queries\": [\"tiger photos\", \"tiger images wild tiger photos\"]}, \"search_turns_count\": 1, \"search_source\": \"composer_auto\", \"client_reported_search_source\": \"composer_auto\", \"request_id\": \"5e2bd045-67fd-4e46-a087-437e8b7b769a\", \"message_type\": \"next\", \"turn_exchange_id\": \"65dd3e5f-1c46-445d-8567-3483012865ea\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"ce436f48-bea3-488c-8090-568010d2b03d\", \"model_switcher_deny\": []}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a017364-d804-8332-9cf3-457dcfd3b16e\", \"error\": null, \"error_code\": null}, \"c\": 5}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": {\"message\": {\"id\": \"124b55af-5203-45cb-b38a-7fab91ac0842\", \"author\": {\"role\": \"tool\", \"name\": \"web.run\", \"metadata\": {\"sonicberry_model_id\": \"alpha.sonic_thinky_v1\", \"real_author\": \"tool:web\", \"source\": \"sonic_tool\"}}, \"create_time\": 1778479974.3789592, \"update_time\": null, \"content\": {\"content_type\": \"text\", \"parts\": [\"\"]}, \"status\": \"in_progress\", \"end_turn\": false, \"weight\": 1.0, \"metadata\": {\"search_result_groups\": [{\"type\": \"search_result_group\", \"domain\": \"timesofindia.indiatimes.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://timesofindia.indiatimes.com/etimes/animals/5-common-tiger-safari-mistakes-tourists-make-and-how-to-avoid-them/photostory/130890358.cms\", \"title\": \"5 common tiger safari mistakes tourists make and how to avoid them\", \"snippet\": \"The article outlines five common mistakes tourists make during tiger safaris and provides tips on how to avoid them for a richer and more respectful wildlife experience. Firstly, it stresses the importance of booking well in advance and choosing the right season, as last-minute planning often results in limited options or poor tiger sighting conditions. Secondly, it warns against wearing bright clothing and making noise, as these can scare wildlife; instead, neutral tones and quiet behavior are advised.\\n\\nAnother common error is expecting guaranteed tiger sightings — the article explains that tigers are elusive, and safaris aren't zoo visits. Respecting this uncertainty enhances the experience. Tourists also tend to ignore experienced guides, whose knowledge greatly increases the chances of sightings and learning. Lastly, the article encourages appreciating the entire ecosystem rather than only focusing on tigers, suggesting that paying attention to all flora and fauna leads to a more fulfilling safari, even in the absence of a tiger encounter.\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"news\", \"ref_index\": 18}, \"pub_date\": 1778150920.0, \"attribution\": \"timesofindia.indiatimes.com\"}]}], \"debug_sonic_thread_id\": \"thread_6a0173666680832bb53c4b977688f391\", \"search_turns_count\": 1, \"search_source\": \"composer_auto\", \"client_reported_search_source\": \"composer_auto\", \"request_id\": \"5e2bd045-67fd-4e46-a087-437e8b7b769a\", \"message_type\": \"next\", \"turn_exchange_id\": \"65dd3e5f-1c46-445d-8567-3483012865ea\", \"model_slug\": \"gpt-4o\", \"default_model_slug\": \"gpt-4o\", \"parent_id\": \"3dbdc47b-c604-4236-8b49-5adca0739295\", \"model_switcher_deny\": []}, \"recipient\": \"all\", \"channel\": null}, \"conversation_id\": \"6a017364-d804-8332-9cf3-457dcfd3b16e\", \"error\": null, \"error_code\": null}, \"c\": 6}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups\", \"o\": \"append\", \"v\": [{\"type\": \"search_result_group\", \"domain\": \"www.the-sun.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://www.the-sun.com/news/16318001/skinny-tiger-struggles-walk-sparking-zoo-outrage-china/\", \"title\": \"Heartbreaking moment skinny tiger struggles to walk up slope as it staggers across zoo sparking outrage over conditions\", \"snippet\": \"A disturbing video taken at Chuandong Ecological Zoo in Longchang, Sichuan Province, China, has sparked public outrage after showing a visibly emaciated tiger struggling to walk up a small slope in its enclosure. The tiger, with protruding ribs and hip bones, appeared weak and staggered, nearly collapsing from fatigue. Witnesses were shocked and recorded the footage, which went viral on Douyin, spurring widespread concern over the animal’s condition.\\n\\nLocal authorities, including Xiangshi Town Government and the Longchang Culture and Tourism Bureau, launched an investigation. Officials clarified that the tiger is a 16- to 18-year-old Siberian tiger—quite elderly for the species—and had been rescued years earlier. Recently recovering from illness, the tiger was reportedly fed regularly but had a reduced appetite. Zoo staff said this was its first outing outdoors post-recovery to get sun and exercise.\\n\\nAlthough zoo officials denied abuse or starvation, criticism mounted over the animal’s care. Authorities stated they would continue monitoring the tiger's condition and consider moving it to a better facility if necessary to ensure adequate care.\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"news\", \"ref_index\": 19}, \"pub_date\": 1778001700.0, \"attribution\": \"www.the-sun.com\"}]}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result_group\", \"domain\": \"unsplash.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://unsplash.com/images/animals/tiger\", \"title\": \"Tiger Pictures | Download Free Images & Stock Photos on Unsplash\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 0}, \"pub_date\": null, \"attribution\": \"unsplash.com\"}]}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result_group\", \"domain\": \"pixabay.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://pixabay.com/photos/search/wild%20tiger/\", \"title\": \"20,000+ Free Wild Tiger & Tiger Photos - Pixabay\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 1}, \"pub_date\": null, \"attribution\": \"pixabay.com\"}]}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/2/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://unsplash.com/s/photos/wild-tiger\", \"title\": \"Wild Tiger Pictures | Download Free Images on Unsplash\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 2}, \"pub_date\": null, \"attribution\": \"unsplash.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups\", \"v\": [{\"type\": \"search_result_group\", \"domain\": \"www.pexels.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://www.pexels.com/search/tiger/\", \"title\": \"500+ Best Tiger Images · 100% Free Download · Pexels Stock Photos\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 3}, \"pub_date\": null, \"attribution\": \"www.pexels.com\"}]}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/4/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://www.pexels.com/search/tiger%20in%20wild/\", \"title\": \"Tiger In Wild Photos, Download The BEST Free Tiger In Wild Stock Photos & HD Images\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 4}, \"pub_date\": null, \"attribution\": \"www.pexels.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/3/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://pixabay.com/photos/tiger-\", \"title\": \"5,000+ Free Tiger- & Nature Photos - Pixabay\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 5}, \"pub_date\": null, \"attribution\": \"pixabay.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result\", \"url\": \"https://pixabay.com/photos/search/tiger/\", \"title\": \"5,000+ Free Tiger & Nature Photos - Pixabay\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 6}, \"pub_date\": null, \"attribution\": \"pixabay.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result\", \"url\": \"https://pixabay.com/photos/search/tigers/\", \"title\": \"5,000+ Free Tigers & Nature Photos - Pixabay\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 7}, \"pub_date\": null, \"attribution\": \"pixabay.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/4/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://www.pexels.com/search/tiger\", \"title\": \"500+ Best Tiger Images · 100% Free Download · Pexels Stock Photos\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 8}, \"pub_date\": null, \"attribution\": \"www.pexels.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/2/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://unsplash.com/s/photos/tiger\", \"title\": \"Tiger Pictures | Download Free Images & Stock Photos on Unsplash\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 9}, \"pub_date\": null, \"attribution\": \"unsplash.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"v\": [{\"type\": \"search_result\", \"url\": \"https://unsplash.com/s/photos/tiger-images\", \"title\": \"Tiger Images Pictures | Download Free Images on Unsplash\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 10}, \"pub_date\": null, \"attribution\": \"unsplash.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/3/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://pixabay.com/images/search/wild%20tiger/\", \"title\": \"20,000+ Free Wild Tiger & Tiger Images - Pixabay\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 11}, \"pub_date\": null, \"attribution\": \"pixabay.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups/4/entries\", \"v\": [{\"type\": \"search_result\", \"url\": \"https://www.pexels.com/search/wild%20tiger/\", \"title\": \"Wild Tiger Photos, Download The BEST Free Wild Tiger Stock Photos & HD Images\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 12}, \"pub_date\": null, \"attribution\": \"www.pexels.com\"}]}"
+    },
+    {
+      "type": null,
+      "preview": "{\"p\": \"/message/metadata/search_result_groups\", \"v\": [{\"type\": \"search_result_group\", \"domain\": \"www.nationalgeographic.com\", \"entries\": [{\"type\": \"search_result\", \"url\": \"https://www.nationalgeographic.com/animals/article/tigers\", \"title\": \"Tiger Pictures - Tiger Wallpapers - National Geographic | National Geographic\", \"snippet\": \"\", \"ref_id\": {\"turn_index\": 0, \"ref_type\": \"search\", \"ref_index\": 13}, \"pub_date\": 1255996800.0, \"attribution\": \"www.nationalgeographic.com\"}]}]}"
+    }
+  ]
+}
