@@ -23,6 +23,7 @@ const uploadedFileName = ref('');
 const searchQuery = ref('');
 const listError = ref('');
 const novelPage = ref(0);
+const novelNextCursor = ref('');
 const novelTotal = ref(0);
 const novelTotalRatings = ref(0);
 const novelHasMore = ref(true);
@@ -101,6 +102,8 @@ async function loadNovels({ reset = true } = {}) {
   if (!reset && (loading.value || loadingMore.value || !novelHasMore.value)) return;
 
   const nextPage = reset ? 1 : novelPage.value + 1;
+  const nextCursor = reset ? '' : novelNextCursor.value;
+  if (!reset && !nextCursor) return;
   const requestedQuery = searchQuery.value.trim();
   const requestId = ++listRequestId;
   if (reset) {
@@ -114,16 +117,18 @@ async function loadNovels({ reset = true } = {}) {
       page: nextPage,
       size: NOVEL_PAGE_SIZE,
       query: requestedQuery,
+      cursor: nextCursor,
     });
     if (requestId !== listRequestId || requestedQuery !== searchQuery.value.trim()) {
       return;
     }
     const items = Array.isArray(page) ? page : page.items || [];
     novels.value = reset ? items : mergeNovels(novels.value, items);
-    novelPage.value = Array.isArray(page) ? nextPage : page.page || nextPage;
+    novelPage.value = nextPage;
+    novelNextCursor.value = Array.isArray(page) ? '' : page.nextCursor || '';
     novelTotal.value = Array.isArray(page) ? novels.value.length : page.total || 0;
     novelTotalRatings.value = Array.isArray(page) ? totalRatings.value : page.totalRatings || 0;
-    novelHasMore.value = Array.isArray(page) ? false : Boolean(page.hasMore);
+    novelHasMore.value = Array.isArray(page) ? false : Boolean(page.hasMore && page.nextCursor);
     if (!selectedNovel.value && novels.value.length) {
       await openNovel(novels.value[0].id);
     }

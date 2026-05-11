@@ -21,8 +21,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('balance', String(data.balance));
   }
 
-  async function register(emailAddr, password, verificationCode) {
-    const data = await api.register(emailAddr, password, verificationCode);
+  async function register(emailAddr, password, verificationCode, turnstileToken = '') {
+    const data = await api.register(emailAddr, password, verificationCode, turnstileToken);
     saveSession(data);
     return data;
   }

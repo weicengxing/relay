@@ -44,6 +44,9 @@ SMTP_USERNAME = os.getenv("QQ_SMTP_USERNAME", "2997657261@qq.com")
 SMTP_PASSWORD = os.getenv("QQ_SMTP_PASSWORD", "mlajppzvoexhdddf")
 SMTP_FROM = os.getenv("QQ_SMTP_FROM", SMTP_USERNAME)
 VERIFICATION_CODE_TTL_MINUTES = int(os.getenv("VERIFICATION_CODE_TTL_MINUTES", "10"))
+TURNSTILE_SECRET = os.getenv("TURNSTILE_SECRET", "")
+TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "0x4AAAAAADMr7AGgokgaUM6z")
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 DEFAULT_WEB_MODEL = "gpt-5-3"
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -425,6 +428,7 @@ def init_db() -> None:
               primary key (novel_id, user_id)
             );
             create index if not exists idx_novels_created_at on novels(created_at desc);
+            create index if not exists idx_novels_created_id on novels(created_at desc, id desc);
             create index if not exists idx_novels_rating on novels(rating_count desc, rating_total desc);
             create index if not exists idx_novel_ratings_user_id on novel_ratings(user_id);
             create index if not exists idx_web_chat_history_files_user_updated
@@ -509,6 +513,7 @@ def rebuild_novels_table(con: sqlite3.Connection) -> None:
             drop table novels;
             alter table novels_new rename to novels;
             create index if not exists idx_novels_created_at on novels(created_at desc);
+            create index if not exists idx_novels_created_id on novels(created_at desc, id desc);
             create index if not exists idx_novels_rating on novels(rating_count desc, rating_total desc);
             """
         )
@@ -525,6 +530,7 @@ def seed_defaults(con: sqlite3.Connection) -> None:
         ("billing.cost_multiplier", "1.2", "Cost multiplier"),
         ("announcements.badge_default", "0", "Default announcement badge count"),
         ("maintenance.write_disabled", "false", "Disable database write APIs during migration"),
+        ("auth.turnstile_enabled", "true", "Require Cloudflare Turnstile verification during registration"),
     ]
     con.executemany(
         """
@@ -744,6 +750,23 @@ def b64url(data: bytes) -> str:
 
 def b64url_decode(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def encode_novel_cursor(row: sqlite3.Row) -> str:
+    payload = {"createdAt": row["created_at"], "id": row["id"]}
+    return b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+
+def decode_novel_cursor(cursor: str) -> tuple[str, int]:
+    try:
+        payload = json.loads(b64url_decode(cursor).decode("utf-8"))
+        created_at = str(payload["createdAt"])
+        novel_id = int(payload["id"])
+        if not created_at or novel_id < 1:
+            raise ValueError
+        return created_at, novel_id
+    except Exception as exc:
+        raise AppError(400, "VALIDATION_FAILED", "Invalid novel cursor") from exc
 
 
 def trim_slashes(value: Any) -> str:
@@ -1067,6 +1090,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     verificationCode: str
+    turnstileToken: str | None = ""
 
 
 class LoginRequest(BaseModel):
@@ -1161,6 +1185,10 @@ def bootstrap() -> dict[str, Any]:
                 "request_logs",
                 "sqlite",
             ],
+            "turnstile": {
+                "enabled": turnstile_enabled(),
+                "siteKey": TURNSTILE_SITE_KEY,
+            },
         }
     )
 
@@ -1193,6 +1221,7 @@ def send_register_code(payload: RegisterCodeRequest) -> dict[str, Any]:
 @app.post("/api/auth/register")
 @db_write_api
 def register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
+    verify_turnstile(payload.turnstileToken, request)
     email = payload.email.strip().lower()
     if not email or "@" not in email:
         raise AppError(400, "VALIDATION_FAILED", "Invalid email")
@@ -1703,31 +1732,50 @@ def redeem_code(payload: RedeemCodeRequest, authorization: str | None = Header(d
 
 @app.get("/api/novels")
 def list_novels(
-    page: int = 1, size: int = 20, q: str = "", authorization: str | None = Header(default=None)
+    page: int = 1,
+    size: int = 20,
+    q: str = "",
+    cursor: str = "",
+    authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     page = max(1, page)
     size = max(1, min(size, 100))
-    offset = (page - 1) * size
-    query = f"%{q.strip()}%"
-    where = "where title like ? or author like ? or excerpt like ?"
-    params: tuple[Any, ...] = (query, query, query) if q.strip() else ()
-    where_sql = where if q.strip() else ""
+    conditions: list[str] = []
+    params: list[Any] = []
+    total_params: list[Any] = []
+    trimmed_query = q.strip()
+    if trimmed_query:
+        query = f"%{trimmed_query}%"
+        conditions.append("(title like ? or author like ? or excerpt like ?)")
+        params.extend([query, query, query])
+        total_params.extend([query, query, query])
+    if cursor.strip():
+        cursor_created_at, cursor_id = decode_novel_cursor(cursor.strip())
+        conditions.append("(created_at < ? or (created_at = ? and id < ?))")
+        params.extend([cursor_created_at, cursor_created_at, cursor_id])
+    where_sql = f"where {' and '.join(conditions)}" if conditions else ""
+    total_where_sql = (
+        "where title like ? or author like ? or excerpt like ?" if trimmed_query else ""
+    )
     with db() as con:
-        total = con.execute(f"select count(*) from novels {where_sql}", params).fetchone()[0]
+        total = con.execute(f"select count(*) from novels {total_where_sql}", tuple(total_params)).fetchone()[0]
         rows = con.execute(
-            f"select * from novels {where_sql} order by created_at desc limit ? offset ?",
-            params + (size, offset),
+            f"select * from novels {where_sql} order by created_at desc, id desc limit ?",
+            tuple(params) + (size + 1,),
         ).fetchall()
+        page_rows = rows[:size]
         ratings = my_ratings(con, user_id)
+    has_more = len(rows) > size
     return api_ok(
         {
-            "items": [novel_summary(row, ratings.get(row["id"])) for row in rows],
+            "items": [novel_summary(row, ratings.get(row["id"])) for row in page_rows],
             "page": page,
             "size": size,
             "total": total,
-            "totalRatings": sum(row["rating_count"] for row in rows),
-            "hasMore": offset + len(rows) < total,
+            "totalRatings": sum(row["rating_count"] for row in page_rows),
+            "hasMore": has_more,
+            "nextCursor": encode_novel_cursor(page_rows[-1]) if has_more and page_rows else "",
         }
     )
 
@@ -3590,6 +3638,48 @@ def deduct_expired_redeem_codes(con: sqlite3.Connection, user_id: str) -> Decima
 def setting(con: sqlite3.Connection, key: str, default: str) -> str:
     row = con.execute("select setting_value from app_settings where setting_key = ?", (key,)).fetchone()
     return row["setting_value"] if row else default
+
+
+def bool_setting(con: sqlite3.Connection, key: str, default: bool) -> bool:
+    raw = setting(con, key, "true" if default else "false")
+    return str(raw).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def turnstile_enabled() -> bool:
+    try:
+        with db() as con:
+            return bool_setting(con, "auth.turnstile_enabled", True)
+    except sqlite3.Error:
+        return True
+
+
+def verify_turnstile(token: str | None, request: Request) -> None:
+    if not turnstile_enabled():
+        return
+    token = (token or "").strip()
+    if not token or len(token) > 2048:
+        raise AppError(400, "TURNSTILE_REQUIRED", "Human verification is required")
+    if not TURNSTILE_SECRET.strip():
+        raise AppError(500, "TURNSTILE_NOT_CONFIGURED", "Turnstile is not configured")
+
+    body = {
+        "secret": TURNSTILE_SECRET,
+        "response": token,
+    }
+    ip = client_ip(request)
+    if ip:
+        body["remoteip"] = ip
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.post(TURNSTILE_VERIFY_URL, data=body)
+            response.raise_for_status()
+            payload = response.json()
+    except Exception as exc:
+        raise AppError(400, "TURNSTILE_FAILED", "Human verification failed") from exc
+
+    if not payload.get("success"):
+        raise AppError(400, "TURNSTILE_FAILED", "Human verification failed", payload.get("error-codes"))
 
 
 def regex_first(text: str, pattern: re.Pattern[str]) -> str | None:

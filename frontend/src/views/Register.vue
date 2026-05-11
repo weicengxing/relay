@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { sendRegisterCode } from '../api';
+import { getBootstrap, sendRegisterCode } from '../api';
 import { useAuthStore } from '../stores/auth';
 
 const auth = useAuthStore();
@@ -17,9 +17,68 @@ const sendingCode = ref(false);
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const countdown = ref(0);
+const turnstileContainer = ref(null);
+const turnstileEnabled = ref(true);
+const turnstileSiteKey = ref('');
+const turnstileToken = ref('');
+const turnstileError = ref('');
+const turnstileWidgetId = ref(null);
 let timer = null;
 
+const fallbackTurnstileSiteKey = '0x4AAAAAADMr7AGgokgaUM6z';
+
 const canSendCode = computed(() => /^[1-9][0-9]{4,11}@qq\.com$/.test(email.value));
+
+function loadTurnstileScript() {
+  if (window.turnstile) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[src*="challenges.cloudflare.com/turnstile"]');
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', reject, { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+async function renderTurnstile() {
+  if (!turnstileEnabled.value || !turnstileSiteKey.value || !turnstileContainer.value) return;
+  try {
+    await loadTurnstileScript();
+    if (turnstileWidgetId.value !== null || !window.turnstile) return;
+    turnstileWidgetId.value = window.turnstile.render(turnstileContainer.value, {
+      sitekey: turnstileSiteKey.value,
+      callback: (token) => {
+        turnstileToken.value = token;
+        turnstileError.value = '';
+      },
+      'expired-callback': () => {
+        turnstileToken.value = '';
+      },
+      'error-callback': () => {
+        turnstileToken.value = '';
+        turnstileError.value = '人机验证失败，请重试';
+      },
+    });
+  } catch (e) {
+    resetTurnstile();
+    turnstileError.value = '人机验证加载失败，请刷新页面';
+  }
+}
+
+function resetTurnstile() {
+  turnstileToken.value = '';
+  if (window.turnstile && turnstileWidgetId.value !== null) {
+    window.turnstile.reset(turnstileWidgetId.value);
+  }
+}
 
 function startCountdown(seconds) {
   countdown.value = seconds;
@@ -60,9 +119,13 @@ async function handleSubmit() {
     error.value = '请输入验证码';
     return;
   }
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    error.value = '请先完成人机验证';
+    return;
+  }
   loading.value = true;
   try {
-    await auth.register(email.value, password.value, verificationCode.value);
+    await auth.register(email.value, password.value, verificationCode.value, turnstileToken.value);
     router.push('/');
   } catch (e) {
     error.value = e.message || '注册失败';
@@ -70,6 +133,19 @@ async function handleSubmit() {
     loading.value = false;
   }
 }
+
+onMounted(async () => {
+  try {
+    const bootstrap = await getBootstrap();
+    turnstileEnabled.value = bootstrap?.turnstile?.enabled === true;
+    turnstileSiteKey.value = bootstrap?.turnstile?.siteKey || '';
+  } catch (e) {
+    turnstileEnabled.value = false;
+    turnstileSiteKey.value = '';
+  }
+  await nextTick();
+  await renderTurnstile();
+});
 
 onBeforeUnmount(() => {
   clearInterval(timer);
@@ -145,6 +221,11 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </label>
+
+        <div v-if="turnstileEnabled && turnstileSiteKey" class="turnstile-wrap">
+          <div ref="turnstileContainer"></div>
+          <span v-if="turnstileError" class="hint">{{ turnstileError }}</span>
+        </div>
 
         <button type="submit" class="submit" :disabled="loading">
           <span v-if="loading" class="spin"></span>
@@ -347,6 +428,13 @@ h1 {
   font-size: 12px;
   color: var(--text-muted);
   margin-top: -2px;
+}
+
+.turnstile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 65px;
 }
 
 .submit {

@@ -22,10 +22,10 @@ async function request(path, options = {}) {
   return json.data;
 }
 
-export function register(email, password, verificationCode) {
+export function register(email, password, verificationCode, turnstileToken = '') {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password, verificationCode }),
+    body: JSON.stringify({ email, password, verificationCode, turnstileToken }),
   });
 }
 
@@ -309,11 +309,16 @@ export function redeemCode(code) {
   });
 }
 
-export function getNovels({ page = 1, size = 20, query = '' } = {}) {
+export function getNovels({ page = 1, size = 20, query = '', cursor = '' } = {}) {
   const params = new URLSearchParams({
-    page: String(page),
     size: String(size),
   });
+  const trimmedCursor = cursor.trim();
+  if (trimmedCursor) {
+    params.set('cursor', trimmedCursor);
+  } else {
+    params.set('page', String(page));
+  }
   const trimmedQuery = query.trim();
   if (trimmedQuery) {
     params.set('q', trimmedQuery);

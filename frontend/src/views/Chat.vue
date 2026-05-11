@@ -541,7 +541,9 @@ function escapeHtml(value) {
 function handleKeydown(event) {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
-    sendMessage();
+    if (!loading.value && !pageLoading.value) {
+      sendMessage();
+    }
   }
 }
 
@@ -660,7 +662,7 @@ onMounted(loadSession);
         <textarea
           v-model="input"
           rows="1"
-          :disabled="loading || pageLoading"
+          :disabled="pageLoading"
           placeholder="给 ChatGPT 发送消息"
           @keydown="handleKeydown"
           @paste="handlePaste"
