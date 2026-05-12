@@ -3,26 +3,45 @@
 @db_write_api
 async def proxy(path: str, request: Request) -> Response:
     body = await request.body()
-    return await run_in_threadpool(proxy_with_body, path, request, body)
-
-
-def proxy_with_body(path: str, request: Request, body: bytes) -> Response:
     event_stream = "text/event-stream" in (request.headers.get("accept") or "")
     raw_key = bearer_token(request.headers.get("authorization")) or request.headers.get("x-api-key")
     try:
-        api_key = authenticate_api_key(raw_key)
+        api_key = await run_in_threadpool(authenticate_api_key, raw_key)
     except AppError as exc:
         return local_proxy_error(exc.status, exc.message, event_stream)
-    if user_balance(api_key["user_id"]) < Decimal("0"):
+    if await run_in_threadpool(user_balance, api_key["user_id"]) < Decimal("0"):
         return local_proxy_error(402, "余额不足", event_stream)
     client_type = detect_client_type(request, body)
-    upstreams = acquire_upstreams(client_type)
+    upstreams = await run_in_threadpool(acquire_upstreams, client_type)
     if not upstreams:
         return local_proxy_error(404, "No upstream service configured", event_stream)
+    return await proxy_with_body(path, request, body, event_stream, api_key, client_type, upstreams)
+
+
+async def proxy_with_body(
+    path: str,
+    request: Request,
+    body: bytes,
+    event_stream: bool,
+    api_key: sqlite3.Row,
+    client_type: str,
+    upstreams: list[dict[str, Any]],
+) -> Response:
     request_uri = request.url.path
     query_string = request.url.query
     started = time.monotonic()
-    client: httpx.Client | None = None
+    if client_type == "CODEX" and event_stream:
+        return lazy_codex_streaming_response(
+            request,
+            body,
+            api_key,
+            client_type,
+            upstreams,
+            request_uri,
+            query_string,
+            started,
+        )
+    client: httpx.AsyncClient | None = httpx.AsyncClient(timeout=None)
     stream: httpx.Response | None = None
     upstream: dict[str, Any] | None = None
     prefetched_body: bytes | None = None
@@ -32,13 +51,11 @@ def proxy_with_body(path: str, request: Request, body: bytes) -> Response:
             upstream_body = normalize_upstream_body(body, candidate, client_type, event_stream)
             upstream_url = join_upstream_url(upstream_endpoint(candidate), request_uri, query_string)
             headers = build_upstream_headers(request, candidate, client_type, upstream_body)
-            client = httpx.Client(timeout=None)
             upstream_request = client.build_request(request.method, upstream_url, content=upstream_body, headers=headers)
-            candidate_stream = client.send(upstream_request, stream=True)
+            candidate_stream = await client.send(upstream_request, stream=True)
             if should_inspect_quota_retry(client_type, candidate_stream.status_code):
-                candidate_body = candidate_stream.read()
-                candidate_stream.close()
-                client.close()
+                candidate_body = await candidate_stream.aread()
+                await candidate_stream.aclose()
                 if is_retryable_quota_error(candidate_stream.status_code, candidate_body) and index < len(upstreams) - 1:
                     last_error = f"Upstream service {candidate.get('id')} quota limited"
                     continue
@@ -53,14 +70,14 @@ def proxy_with_body(path: str, request: Request, body: bytes) -> Response:
             last_error = exception_summary(exc)
             try:
                 if stream is not None:
-                    stream.close()
-                if client is not None:
-                    client.close()
+                    await stream.aclose()
             except Exception:
                 pass
             if index < len(upstreams) - 1:
                 continue
     if stream is None or upstream is None:
+        if client is not None:
+            await client.aclose()
         return local_proxy_error(502, last_error, event_stream)
     response_headers = {
         key: value
@@ -71,33 +88,33 @@ def proxy_with_body(path: str, request: Request, body: bytes) -> Response:
     response_headers["x-accel-buffering"] = "no"
     media_type = stream.headers.get("content-type") or ("text/event-stream" if event_stream else "application/json")
 
-    def generate() -> Iterable[bytes]:
+    async def generate() -> AsyncIterable[bytes]:
         captured = bytearray()
         first_token_ms = 0
         response_bytes = 0
         saw_first = False
         status_code = stream.status_code
         try:
-            source = [prefetched_body] if prefetched_body is not None else stream.iter_bytes()
-            for chunk in source:
+            async for chunk, from_upstream in async_proxy_chunks(stream, prefetched_body, client_type, media_type):
                 if not chunk:
                     continue
-                if not saw_first:
+                if from_upstream and not saw_first:
                     saw_first = True
                     first_token_ms = int((time.monotonic() - started) * 1000)
                 response_bytes += len(chunk)
-                if len(captured) < 256 * 1024:
+                if from_upstream and len(captured) < 256 * 1024:
                     captured.extend(chunk[: 256 * 1024 - len(captured)])
                 yield chunk
         finally:
             try:
                 if prefetched_body is None:
-                    stream.close()
+                    await stream.aclose()
                 if client is not None:
-                    client.close()
+                    await client.aclose()
             finally:
                 use_time_ms = int((time.monotonic() - started) * 1000)
-                record_proxy_request_sync(
+                await run_in_threadpool(
+                    record_proxy_request_sync,
                     api_key,
                     client_type,
                     request.method,
@@ -114,6 +131,184 @@ def proxy_with_body(path: str, request: Request, body: bytes) -> Response:
                 )
 
     return StreamingResponse(generate(), status_code=stream.status_code, headers=response_headers, media_type=media_type)
+
+
+CODEX_SSE_KEEPALIVE = b": relay-keepalive\n\n"
+
+
+def lazy_codex_streaming_response(
+    request: Request,
+    body: bytes,
+    api_key: sqlite3.Row,
+    client_type: str,
+    upstreams: list[dict[str, Any]],
+    request_uri: str,
+    query_string: str,
+    started: float,
+) -> StreamingResponse:
+    response_headers = {
+        "cache-control": "no-cache",
+        "x-accel-buffering": "no",
+    }
+
+    async def generate() -> AsyncIterable[bytes]:
+        captured = bytearray()
+        first_token_ms = 0
+        response_bytes = 0
+        saw_first = False
+        status_code = 502
+        upstream: dict[str, Any] | None = None
+        stream: httpx.Response | None = None
+        client: httpx.AsyncClient | None = httpx.AsyncClient(timeout=None)
+        last_error = "Unable to reach upstream service"
+        try:
+            for index, candidate in enumerate(upstreams):
+                send_task: asyncio.Task[httpx.Response] | None = None
+                try:
+                    upstream_body = normalize_upstream_body(body, candidate, client_type, True)
+                    upstream_url = join_upstream_url(upstream_endpoint(candidate), request_uri, query_string)
+                    headers = build_upstream_headers(request, candidate, client_type, upstream_body)
+                    upstream_request = client.build_request(
+                        request.method, upstream_url, content=upstream_body, headers=headers
+                    )
+                    send_task = asyncio.create_task(client.send(upstream_request, stream=True))
+                    while True:
+                        done, _ = await asyncio.wait({send_task}, timeout=2.0)
+                        if done:
+                            stream = send_task.result()
+                            status_code = stream.status_code
+                            break
+                        response_bytes += len(CODEX_SSE_KEEPALIVE)
+                        yield CODEX_SSE_KEEPALIVE
+
+                    if should_inspect_quota_retry(client_type, status_code):
+                        candidate_body = await stream.aread()
+                        await stream.aclose()
+                        if is_retryable_quota_error(status_code, candidate_body) and index < len(upstreams) - 1:
+                            last_error = f"Upstream service {candidate.get('id')} quota limited"
+                            stream = None
+                            continue
+                        upstream = candidate
+                        async for chunk in codex_sse_error_chunks(status_code, candidate_body):
+                            response_bytes += len(chunk)
+                            if len(captured) < 256 * 1024:
+                                captured.extend(chunk[: 256 * 1024 - len(captured)])
+                            if not saw_first:
+                                saw_first = True
+                                first_token_ms = int((time.monotonic() - started) * 1000)
+                            yield chunk
+                        break
+
+                    upstream = candidate
+                    async for chunk, from_upstream in sse_chunks_with_keepalive(stream):
+                        if not chunk:
+                            continue
+                        response_bytes += len(chunk)
+                        if from_upstream:
+                            if not saw_first:
+                                saw_first = True
+                                first_token_ms = int((time.monotonic() - started) * 1000)
+                            if len(captured) < 256 * 1024:
+                                captured.extend(chunk[: 256 * 1024 - len(captured)])
+                        yield chunk
+                    break
+                except Exception as exc:
+                    last_error = exception_summary(exc)
+                    if send_task is not None and not send_task.done():
+                        send_task.cancel()
+                        try:
+                            await send_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                    if stream is not None:
+                        await stream.aclose()
+                        stream = None
+                    if index < len(upstreams) - 1:
+                        continue
+                    chunk = codex_sse_error_bytes(last_error)
+                    response_bytes += len(chunk)
+                    captured.extend(chunk[: 256 * 1024 - len(captured)])
+                    yield chunk
+        finally:
+            try:
+                if stream is not None:
+                    await stream.aclose()
+                if client is not None:
+                    await client.aclose()
+            finally:
+                use_time_ms = int((time.monotonic() - started) * 1000)
+                await run_in_threadpool(
+                    record_proxy_request_sync,
+                    api_key,
+                    client_type,
+                    request.method,
+                    request_uri,
+                    query_string,
+                    client_ip(request),
+                    request.headers.get("user-agent"),
+                    body,
+                    bytes(captured),
+                    upstream.get("id") if upstream else None,
+                    status_code,
+                    use_time_ms,
+                    first_token_ms or use_time_ms,
+                )
+
+    return StreamingResponse(generate(), status_code=200, headers=response_headers, media_type="text/event-stream")
+
+
+async def codex_sse_error_chunks(status_code: int, body: bytes) -> AsyncIterable[bytes]:
+    message = f"Upstream returned HTTP {status_code}"
+    if body:
+        message = f"{message}: {truncate(body.decode('utf-8', 'replace'), 2000)}"
+    yield codex_sse_error_bytes(message)
+
+
+def codex_sse_error_bytes(message: str) -> bytes:
+    body = {"error": {"message": message, "type": "relay_error", "code": "relay_error"}}
+    return f"event: error\ndata: {json.dumps(body, ensure_ascii=False, separators=(',', ':'))}\n\n".encode()
+
+
+async def async_proxy_chunks(
+    stream: httpx.Response,
+    prefetched_body: bytes | None,
+    client_type: str,
+    media_type: str,
+) -> AsyncIterable[tuple[bytes, bool]]:
+    if prefetched_body is not None:
+        yield prefetched_body, True
+        return
+    if client_type == "CODEX" and "text/event-stream" in (media_type or "").lower():
+        async for item in sse_chunks_with_keepalive(stream):
+            yield item
+        return
+    async for chunk in stream.aiter_bytes():
+        yield chunk, True
+
+
+async def sse_chunks_with_keepalive(stream: httpx.Response) -> AsyncIterable[tuple[bytes, bool]]:
+    interval_seconds = 2.0
+    iterator = stream.aiter_bytes().__aiter__()
+    next_chunk = asyncio.create_task(iterator.__anext__())
+    try:
+        while True:
+            done, _ = await asyncio.wait({next_chunk}, timeout=interval_seconds)
+            if not done:
+                yield CODEX_SSE_KEEPALIVE, False
+                continue
+            try:
+                chunk = next_chunk.result()
+            except StopAsyncIteration:
+                break
+            yield chunk, True
+            next_chunk = asyncio.create_task(iterator.__anext__())
+    finally:
+        if not next_chunk.done():
+            next_chunk.cancel()
+            try:
+                await next_chunk
+            except (asyncio.CancelledError, StopAsyncIteration):
+                pass
 
 
 def authenticate_api_key(key: str | None) -> sqlite3.Row:
