@@ -47,6 +47,12 @@ def session_response(session: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def web_conduit_token(session: dict[str, Any], message: str, model: str, conversation_id: str | None, parent_id: str) -> str:
+    if session.get("call_prepare"):
+        return prepare_web_turn(session, message, model, conversation_id, parent_id)
+    return first_non_blank(session.get("conduit_token"), "aaa")
+
+
 def send_web_chat_turn(
     user_id: str,
     request_payload: WebChatMessageRequest,
@@ -62,11 +68,7 @@ def send_web_chat_turn(
     conversation_id = None if new_conversation else first_non_blank(session.get("conversation_id"))
     parent_message_id = ROOT_PARENT_MESSAGE_ID if new_conversation else first_non_blank(session.get("parent_message_id"), ROOT_PARENT_MESSAGE_ID)
     model = first_non_blank(request_payload.model, session.get("model"), DEFAULT_WEB_MODEL)
-    conduit_token = session.get("conduit_token")
-    if session.get("call_prepare"):
-        conduit_token = prepare_web_turn(session, message, model, conversation_id, parent_message_id)
-    if not conduit_token:
-        raise AppError(503, "VALIDATION_FAILED", "Web chat config requires conduit_token or call_prepare=true")
+    conduit_token = web_conduit_token(session, message, model, conversation_id, parent_message_id)
     uploaded_images = upload_web_images(session, images)
     events: list[str] = []
 
@@ -114,11 +116,7 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
     conversation_id = None if new_conversation else first_non_blank(session.get("conversation_id"))
     parent_message_id = ROOT_PARENT_MESSAGE_ID if new_conversation else first_non_blank(session.get("parent_message_id"), ROOT_PARENT_MESSAGE_ID)
     model = first_non_blank(request_payload.model, session.get("model"), DEFAULT_WEB_MODEL)
-    conduit_token = session.get("conduit_token")
-    if session.get("call_prepare"):
-        conduit_token = prepare_web_turn(session, message, model, conversation_id, parent_message_id)
-    if not conduit_token:
-        raise AppError(503, "VALIDATION_FAILED", "Web chat config requires conduit_token or call_prepare=true")
+    conduit_token = web_conduit_token(session, message, model, conversation_id, parent_message_id)
     uploaded_images = upload_web_images(session, images)
 
     path = "/backend-api/f/conversation"
@@ -277,5 +275,4 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
         )
         append_web_chat_history(con, user_id, request_payload, result_payload)
     yield result_payload
-
 

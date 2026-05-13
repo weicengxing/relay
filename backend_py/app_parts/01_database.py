@@ -1,9 +1,10 @@
 @contextmanager
 def db() -> Iterable[sqlite3.Connection]:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH, timeout=30)
+    con = sqlite3.connect(DB_PATH, timeout=5)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    con.execute("PRAGMA busy_timeout = 5000")
     try:
         yield con
         con.commit()
@@ -13,6 +14,8 @@ def db() -> Iterable[sqlite3.Connection]:
 
 def init_db() -> None:
     with db() as con:
+        con.execute("PRAGMA journal_mode = WAL")
+        con.execute("PRAGMA synchronous = NORMAL")
         con.executescript(
             """
             create table if not exists users (
@@ -231,6 +234,12 @@ def init_db() -> None:
             create index if not exists idx_novel_ratings_user_id on novel_ratings(user_id);
             create index if not exists idx_web_chat_history_files_user_updated
               on web_chat_history_files(user_id, updated_at desc);
+            create index if not exists idx_request_logs_user_created
+              on request_logs(user_id, created_at desc, id desc);
+            create index if not exists idx_model_catalog_enabled_sort
+              on model_catalog(enabled, sort_order, id);
+            create index if not exists idx_announcements_active_published
+              on announcements(active, published_at desc, id desc);
             """
         )
         normalize_sqlite_schema(con)
@@ -471,13 +480,13 @@ def import_codex_profiles(con: sqlite3.Connection) -> None:
             """
             insert into openai_codex_profiles
               (openai_service_id, profile_name, auth_mode, openai_api_key, access_token, account_id,
-               id_token, refresh_token, base_url, model, reasoning_effort, last_refresh, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               id_token, refresh_token, client_id, base_url, model, reasoning_effort, last_refresh, created_at, updated_at)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict(openai_service_id) do update set
               profile_name=excluded.profile_name, auth_mode=excluded.auth_mode,
               openai_api_key=excluded.openai_api_key, access_token=excluded.access_token,
               account_id=excluded.account_id, id_token=excluded.id_token,
-              refresh_token=excluded.refresh_token, base_url=excluded.base_url,
+              refresh_token=excluded.refresh_token, client_id=excluded.client_id, base_url=excluded.base_url,
               model=excluded.model, reasoning_effort=excluded.reasoning_effort,
               last_refresh=excluded.last_refresh, updated_at=excluded.updated_at
             """,
@@ -490,6 +499,7 @@ def import_codex_profiles(con: sqlite3.Connection) -> None:
                 tokens.get("account_id") or profile.get("account_id"),
                 tokens.get("id_token") or profile.get("id_token"),
                 tokens.get("refresh_token") or profile.get("refresh_token"),
+                profile.get("client_id") or data.get("client_id"),
                 base_url,
                 first_non_blank(profile.get("model"), defaults.get("model"), "gpt-5.5"),
                 first_non_blank(profile.get("reasoning_effort"), defaults.get("reasoning_effort"), "high"),
@@ -520,4 +530,3 @@ def dedupe_codex_profiles(con: sqlite3.Connection) -> None:
         ).fetchall()
         for delete_row in delete_rows:
             con.execute("delete from openai_services where id = ?", (delete_row["openai_service_id"],))
-

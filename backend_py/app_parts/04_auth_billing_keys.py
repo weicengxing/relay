@@ -166,6 +166,8 @@ def create_api_key(payload: CreateApiKeyRequest, authorization: str | None = Hea
             (user_id, sha256_key(key), key, name, now_iso()),
         )
         row = con.execute("select * from api_keys where id = last_insert_rowid()").fetchone()
+    if "invalidate_proxy_context_cache" in globals():
+        invalidate_proxy_context_cache()
     return api_ok(api_key_response(row))
 
 
@@ -180,6 +182,8 @@ def revoke_api_key(key_id: int, authorization: str | None = Header(default=None)
         )
         if cur.rowcount == 0:
             raise AppError(404, "NOT_FOUND", "API key not found")
+    if "invalidate_proxy_context_cache" in globals():
+        invalidate_proxy_context_cache()
     return api_ok(None)
 
 
@@ -194,13 +198,21 @@ def request_logs(limit: int = 100, authorization: str | None = Header(default=No
     limit = max(1, min(int(limit), 200))
     with db() as con:
         rows = con.execute(
-            "select * from request_logs where user_id = ? order by created_at desc limit ?", (user_id, limit)
+            """
+            select id, created_at, token_name, group_key, request_type, model, use_time_ms,
+                   first_token_ms, prompt_tokens, completion_tokens, cache_read_tokens,
+                   cache_creation_tokens, cost, ip, status, upstream_service_id
+            from request_logs
+            where user_id = ?
+            order by created_at desc, id desc
+            limit ?
+            """,
+            (user_id, limit),
         ).fetchall()
     return api_ok([request_log_response(row) for row in rows])
 
 
 def request_log_response(row: sqlite3.Row) -> dict[str, Any]:
-    detail = row["detail"] or ""
     return {
         "id": row["id"],
         "createdAt": row["created_at"],
@@ -218,5 +230,4 @@ def request_log_response(row: sqlite3.Row) -> dict[str, Any]:
         "ip": row["ip"],
         "status": row["status"],
         "upstreamServiceId": row["upstream_service_id"],
-        "detailLines": detail.splitlines() if detail else [],
     }

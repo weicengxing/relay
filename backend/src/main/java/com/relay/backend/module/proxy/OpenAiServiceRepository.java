@@ -57,6 +57,32 @@ public class OpenAiServiceRepository {
         this::mapRow);
   }
 
+  public void updateCodexProfileTokens(
+      Long openAiServiceId, String accessToken, String idToken, String refreshToken) {
+    jdbcTemplate.update(
+        """
+        update openai_services
+        set token = ?, updated_at = now()
+        where id = ?
+        """,
+        accessToken,
+        openAiServiceId);
+    jdbcTemplate.update(
+        """
+        update openai_codex_profiles
+        set access_token = ?,
+            id_token = ?,
+            refresh_token = ?,
+            last_refresh = now(),
+            updated_at = now()
+        where openai_service_id = ?
+        """,
+        accessToken,
+        idToken,
+        refreshToken,
+        openAiServiceId);
+  }
+
   private OpenAiServiceConfig mapRow(ResultSet rs, int rowNum) throws SQLException {
     Long profileId = rs.getObject("profile_id", Long.class);
     return new OpenAiServiceConfig(

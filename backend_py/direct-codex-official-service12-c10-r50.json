@@ -1,0 +1,480 @@
+{
+  "summary": {
+    "service_id": 12,
+    "profile_name": "local_codex",
+    "configured_concurrent_limit": 10,
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "concurrency": 10,
+    "requests": 50,
+    "success": 0,
+    "failed": 50,
+    "elapsed_s": 4.744,
+    "rps": 10.54,
+    "total_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null,
+      "max": null
+    },
+    "first_event_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null
+    },
+    "errors": {
+      "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}": 50
+    }
+  },
+  "results": [
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1368.4842999791726,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1361.8235000176355,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1435.3960999287665,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1327.8669000137597,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1313.031000085175,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1381.3613000093028,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1329.6583999181166,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1361.876399954781,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1364.7352999541909,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 1371.480799978599,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 477.51760005485266,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 484.7634000470862,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 486.5511000389233,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 479.069699998945,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 499.62420004885644,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 492.72019998170435,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 491.88149999827147,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 513.0720000015572,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 502.6229000650346,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 508.6707000155002,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 491.36120011098683,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 475.25819996371865,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 490.4779000207782,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 465.36610007751733,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 494.38070005271584,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 489.87250006757677,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 490.606400067918,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 570.5431000096723,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 493.16700000781566,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 509.53499996103346,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 490.7013000920415,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 481.33739992044866,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 475.5240000085905,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 493.3655000058934,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 495.79209997318685,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 484.79280003812164,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 492.75780003517866,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 487.13639995548874,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 512.5155000714585,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 510.9156999969855,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 483.02109993528575,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 489.7463000379503,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 470.08009999990463,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 516.7489999439567,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 501.7903000116348,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 491.47610005456954,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 489.41080004442483,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 501.7833999590948,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 515.5703999334946,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    },
+    {
+      "ok": false,
+      "status_code": 401,
+      "total_ms": 506.3569999765605,
+      "first_event_ms": null,
+      "bytes_read": 84,
+      "completed": false,
+      "error": "HTTP 401: {\"detail\":\"Could not parse your authentication token. Please try signing in again.\"}"
+    }
+  ]
+}

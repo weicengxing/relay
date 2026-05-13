@@ -67,6 +67,22 @@ def admin_clean_values(columns: list[dict[str, Any]], values: dict[str, Any]) ->
     return cleaned
 
 
+def admin_invalidate_proxy_cache(table: str | None = None) -> None:
+    proxy_tables = {
+        "api_keys",
+        "app_settings",
+        "claude_services",
+        "model_catalog",
+        "openai_codex_profiles",
+        "openai_services",
+        "redeem_codes",
+        "users",
+    }
+    if table is None or table in proxy_tables:
+        if "invalidate_proxy_context_cache" in globals():
+            invalidate_proxy_context_cache()
+
+
 @app.get("/api/admin/sqlite/tables")
 def admin_sqlite_tables(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     current_owner_user_id(authorization)
@@ -143,6 +159,7 @@ def admin_upload_setting_image(
             """,
             (relative_url, now_iso(), setting_key),
         )
+    admin_invalidate_proxy_cache("app_settings")
     return api_ok({"settingKey": setting_key, "settingValue": relative_url})
 
 
@@ -169,6 +186,7 @@ def admin_delete_setting_image(
             """,
             (now_iso(), setting_key),
         )
+    admin_invalidate_proxy_cache("app_settings")
     return api_ok({"settingKey": setting_key, "settingValue": ""})
 
 
@@ -253,6 +271,7 @@ def admin_sqlite_create_row(
             raise AppError(400, "SQLITE_CONSTRAINT", str(exc)) from exc
         except sqlite3.OperationalError as exc:
             raise AppError(400, "SQLITE_ERROR", str(exc)) from exc
+    admin_invalidate_proxy_cache(table)
     return api_ok({"row": admin_row_response(row) if row else None})
 
 
@@ -283,6 +302,7 @@ def admin_sqlite_update_row(
             raise AppError(400, "SQLITE_CONSTRAINT", str(exc)) from exc
         except sqlite3.OperationalError as exc:
             raise AppError(400, "SQLITE_ERROR", str(exc)) from exc
+    admin_invalidate_proxy_cache(table)
     return api_ok({"row": admin_row_response(row) if row else None})
 
 
@@ -304,6 +324,7 @@ def admin_sqlite_delete_row(
             con.execute(f"delete from {qname} where rowid = ?", (rowid,))
         except sqlite3.IntegrityError as exc:
             raise AppError(400, "SQLITE_CONSTRAINT", str(exc)) from exc
+    admin_invalidate_proxy_cache(table)
     return api_ok(None)
 
 
@@ -341,6 +362,8 @@ def admin_sqlite_execute_sql(
         except sqlite3.Error as exc:
             raise AppError(400, "SQLITE_ERROR", str(exc)) from exc
         changed = con.total_changes - before
+    if changed:
+        admin_invalidate_proxy_cache()
     return api_ok(
         {
             "columns": columns,
@@ -351,5 +374,4 @@ def admin_sqlite_execute_sql(
             "statementCount": statement_count,
         }
     )
-
 

@@ -1,0 +1,478 @@
+{
+  "summary": {
+    "service_id": 5,
+    "profile_name": "weicengxingzhijue_proton",
+    "configured_concurrent_limit": 10,
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "concurrency": 10,
+    "requests": 50,
+    "success": 50,
+    "failed": 0,
+    "elapsed_s": 12.55,
+    "rps": 3.984,
+    "total_ms": {
+      "avg": 2046.9,
+      "p50": 1902.7,
+      "p95": 2579.7,
+      "max": 3493.1
+    },
+    "first_event_ms": {
+      "avg": 973.6,
+      "p50": 788.1,
+      "p95": 1618.2
+    },
+    "errors": {}
+  },
+  "results": [
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2323.428599978797,
+      "first_event_ms": 1554.5189999975264,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2444.4132999051362,
+      "first_event_ms": 1632.0067999185994,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2414.5248000277206,
+      "first_event_ms": 1547.4707999965176,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2307.1176999947056,
+      "first_event_ms": 1501.4175999676809,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2909.8531999625266,
+      "first_event_ms": 1532.7358999056742,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2549.0107000805438,
+      "first_event_ms": 1618.182500009425,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 3201.778899994679,
+      "first_event_ms": 1867.6165000069886,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2572.3595999879763,
+      "first_event_ms": 1462.745700031519,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2579.7495999140665,
+      "first_event_ms": 1492.235399899073,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2462.3185000382364,
+      "first_event_ms": 1577.454400015995,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1894.2532000364736,
+      "first_event_ms": 760.7684000395238,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2020.5724999541417,
+      "first_event_ms": 785.6102000223473,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1620.2008000109345,
+      "first_event_ms": 755.0865000812337,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1717.1348000410944,
+      "first_event_ms": 791.9380000093952,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1675.4108000313863,
+      "first_event_ms": 790.0091999908909,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1622.193199931644,
+      "first_event_ms": 808.6577999638394,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1724.6699999086559,
+      "first_event_ms": 767.6196999382228,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1640.9065999323502,
+      "first_event_ms": 788.0586999235675,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1797.0452000154182,
+      "first_event_ms": 798.8544000545517,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2087.492800084874,
+      "first_event_ms": 760.8349000802264,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2433.279999997467,
+      "first_event_ms": 742.8102999692783,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1737.6282999757677,
+      "first_event_ms": 780.3271999582648,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2009.5562000060454,
+      "first_event_ms": 792.4405999947339,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1935.2659999858588,
+      "first_event_ms": 846.4261000044644,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1902.7411999413744,
+      "first_event_ms": 786.3822999643162,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1881.7638999316841,
+      "first_event_ms": 745.6511999480426,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2221.157499938272,
+      "first_event_ms": 823.2430999632925,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1941.1584000336006,
+      "first_event_ms": 779.8662999412045,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1697.7444000076503,
+      "first_event_ms": 772.6404001004994,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1908.4386000176892,
+      "first_event_ms": 813.13120003324,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2196.2001000065356,
+      "first_event_ms": 773.9138000179082,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1672.1284000668675,
+      "first_event_ms": 806.6020000260323,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1680.5520000634715,
+      "first_event_ms": 755.1856000209227,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1755.150599987246,
+      "first_event_ms": 763.8274000491947,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1723.1241000117734,
+      "first_event_ms": 800.3319000126794,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1877.5776999536902,
+      "first_event_ms": 808.6609999882057,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 3493.113399948925,
+      "first_event_ms": 2422.6572000188753,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1608.3074999041855,
+      "first_event_ms": 750.3512999974191,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1957.0311000570655,
+      "first_event_ms": 843.7507000053301,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1916.7007999494672,
+      "first_event_ms": 774.3727999040857,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1796.690299990587,
+      "first_event_ms": 762.3548000119627,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1581.354400026612,
+      "first_event_ms": 709.0739000122994,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2336.959999985993,
+      "first_event_ms": 754.1045999387279,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1885.5536999180913,
+      "first_event_ms": 782.3768999660388,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1776.3837999664247,
+      "first_event_ms": 783.5831999545917,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2431.4524999354035,
+      "first_event_ms": 789.3651999766007,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1660.080499947071,
+      "first_event_ms": 767.4709999701008,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1730.5310000665486,
+      "first_event_ms": 742.653000052087,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2216.7357999132946,
+      "first_event_ms": 836.1107999226078,
+      "bytes_read": 7812,
+      "completed": true,
+      "error": null
+    },
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 1818.6653000302613,
+      "first_event_ms": 774.1728000110015,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    }
+  ]
+}

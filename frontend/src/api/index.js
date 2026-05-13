@@ -1,4 +1,18 @@
-const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081/api').replace(/\/$/, '');
+const LOCAL_API_BASE = '/api';
+const PUBLIC_API_BASE = 'https://api.relaywei.ccwu.cc/api';
+
+function defaultApiBase() {
+  if (typeof window === 'undefined') {
+    return LOCAL_API_BASE;
+  }
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
+    return LOCAL_API_BASE;
+  }
+  return PUBLIC_API_BASE;
+}
+
+const BASE = (import.meta.env.VITE_API_BASE_URL || defaultApiBase()).replace(/\/$/, '');
 const API_ORIGIN = BASE.replace(/\/api$/, '');
 
 function getToken() {

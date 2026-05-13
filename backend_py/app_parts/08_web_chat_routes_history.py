@@ -33,7 +33,10 @@ def web_chat_message(payload: WebChatMessageRequest, authorization: str | None =
 
 @app.post("/api/web-chat/messages/stream")
 @db_write_api
-def web_chat_message_stream(payload: WebChatMessageRequest, authorization: str | None = Header(default=None)) -> StreamingResponse:
+async def web_chat_message_stream(
+    payload: WebChatMessageRequest,
+    authorization: str | None = Header(default=None),
+) -> StreamingResponse:
     user_id = current_user_id(authorization)
 
     def generate() -> Iterable[str]:
@@ -52,7 +55,10 @@ def web_chat_message_stream(payload: WebChatMessageRequest, authorization: str |
             message = exc.message if isinstance(exc, AppError) else str(exc)
             yield sse_event("error", {"message": message})
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream_in_dedicated_thread(generate, name="web-chat-stream"),
+        media_type="text/event-stream",
+    )
 
 
 @app.get("/api/web-chat/images/{config_id}/{file_id}")
@@ -334,5 +340,4 @@ def append_web_chat_history(
         """,
         (written["url"], written["size"], int(target["turn_count"] or 0) + 1, now_iso(), target["id"]),
     )
-
 

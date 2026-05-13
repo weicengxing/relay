@@ -1,0 +1,488 @@
+{
+  "summary": {
+    "service_id": 4,
+    "profile_name": "wei000",
+    "configured_concurrent_limit": 10,
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "concurrency": 10,
+    "requests": 50,
+    "success": 0,
+    "failed": 50,
+    "elapsed_s": 8.508,
+    "rps": 5.877,
+    "total_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null,
+      "max": null
+    },
+    "first_event_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null
+    },
+    "errors": {
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}": 10,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}": 8,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287942}}": 1,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287941}}": 1,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287940}}": 1,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}": 9,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}": 10,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}": 8,
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287937}}": 2
+    }
+  },
+  "results": [
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1973.9145000930876,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 2010.884299990721,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1937.3713000677526,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 2024.892000015825,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1928.0685000121593,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1870.3226000070572,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1875.7438999600708,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1990.5252999160439,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 2196.421700064093,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1930.3162000142038,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287943}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1282.1284999372438,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1168.578700046055,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287942}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1204.461699933745,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1206.054599955678,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1210.9390000114217,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1183.3859999896958,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1197.4381000036374,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1242.7383000031114,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1137.8838000819087,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1215.6541000586003,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287941}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1141.3387999637052,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1193.8095000805333,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1185.6451999628916,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1392.4698000773787,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1227.0974999992177,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1177.2677999688312,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1237.8430999815464,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1194.0503999358043,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1256.0888000298291,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1239.316700026393,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287940}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1144.3265000125393,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1184.9321000045165,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1223.2558999676257,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1205.3651999449357,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1240.5430000508204,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1625.0332999043167,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1223.1618000660092,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1221.9754999969155,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1186.3142000511289,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1240.538900019601,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287939}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1164.716099970974,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1197.949399938807,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1200.2671000082046,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1425.5281999940053,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1165.3118999674916,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1156.6230000462383,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1262.7825000090525,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1259.0767999645323,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929219,\"eligible_promo\":null,\"resets_in_seconds\":287938}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1254.80710004922,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287937}}"
+    },
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1234.7209000727162,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778929218,\"eligible_promo\":null,\"resets_in_seconds\":287937}}"
+    }
+  ]
+}

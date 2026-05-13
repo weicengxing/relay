@@ -90,17 +90,22 @@ def http_error_handler(_: Request, exc: HTTPException) -> JSONResponse:
 
 
 @app.on_event("startup")
-def startup() -> None:
-    init_db()
+async def startup() -> None:
+    try:
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        limiter.total_tokens = max(limiter.total_tokens, int(os.getenv("RELAY_PY_THREAD_TOKENS", "100")))
+    except Exception:
+        pass
+    await asyncio.to_thread(init_db)
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
+async def health() -> dict[str, Any]:
     return api_ok({"status": "UP", "service": "relay-backend-py", "timestamp": now_iso()})
 
 
 @app.get("/api/bootstrap")
-def bootstrap() -> dict[str, Any]:
+async def bootstrap() -> dict[str, Any]:
     return api_ok(
         {
             "status": "ready",
@@ -123,5 +128,3 @@ def bootstrap() -> dict[str, Any]:
             "rechargePayment": recharge_payment_settings(),
         }
     )
-
-

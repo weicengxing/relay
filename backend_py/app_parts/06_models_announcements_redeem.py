@@ -42,10 +42,13 @@ async def openai_chat_completions(request: Request) -> Response:
     body = await request.body()
     raw_key = bearer_token(request.headers.get("authorization")) or request.headers.get("x-api-key")
     try:
-        api_key = authenticate_api_key(raw_key)
+        auth_context = load_cached_api_key_balance(raw_key)
+        if auth_context is None:
+            auth_context = await run_in_threadpool(load_api_key_balance_sync, raw_key)
+        api_key, balance = auth_context
     except AppError as exc:
         return openai_error(exc.status, exc.message)
-    if user_balance(api_key["user_id"]) < Decimal("0"):
+    if balance < Decimal("0"):
         return openai_error(402, "余额不足")
 
     try:
@@ -68,7 +71,10 @@ async def openai_chat_completions(request: Request) -> Response:
     stream = bool(payload.get("stream"))
     if stream:
         return StreamingResponse(
-            openai_chat_completion_stream(api_key["user_id"], web_payload, model),
+            stream_in_dedicated_thread(
+                lambda: openai_chat_completion_stream(api_key["user_id"], web_payload, model),
+                name="openai-chat-completion-stream",
+            ),
             media_type="text/event-stream",
             headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
         )
@@ -82,7 +88,7 @@ async def openai_chat_completions(request: Request) -> Response:
 
 
 @app.get("/api/announcements")
-def announcements(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+async def announcements(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     with db() as con:
         rows = con.execute(
@@ -98,7 +104,7 @@ def announcements(authorization: str | None = Header(default=None)) -> dict[str,
 
 @app.post("/api/announcements/read")
 @db_write_api
-def mark_announcements_read(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+async def mark_announcements_read(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     ts = now_iso()
     with db() as con:
@@ -109,7 +115,7 @@ def mark_announcements_read(authorization: str | None = Header(default=None)) ->
             """,
             (user_id, ts, ts),
         )
-    return announcements(authorization)
+    return await announcements(authorization)
 
 
 def announcement_response(row: sqlite3.Row) -> dict[str, Any]:
@@ -142,5 +148,3 @@ def redeem_code(payload: RedeemCodeRequest, authorization: str | None = Header(d
             (user_id, now_iso(), now_iso(), row["id"]),
         )
     return api_ok({"amount": float(amount), "balance": float(balance_value), "expiresAt": row["expires_at"]})
-
-

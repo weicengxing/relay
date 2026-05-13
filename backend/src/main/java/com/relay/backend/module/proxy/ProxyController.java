@@ -61,6 +61,8 @@ public class ProxyController {
   private static final String CODEX_UPSTREAM_ORIGINATOR = "codex_cli_rs";
   private static final String CODEX_UPSTREAM_USER_AGENT = "codex_cli_rs/0.126.0 (Windows 10; x86_64)";
   private static final String CODEX_UPSTREAM_VERSION = "0.126.0";
+  private static final String CODEX_DEFAULT_INSTRUCTIONS =
+      "You are a coding agent running in the Codex client. Be precise, safe, and helpful.";
   private static final Set<String> REQUEST_HEADERS_TO_DROP =
       Set.of(
           "accept-encoding",
@@ -202,6 +204,9 @@ public class ProxyController {
       HttpResponse<InputStream> upstreamResponse;
       try {
         upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
+        upstreamResponse =
+            retryCodexAfterRefreshIfUnauthorized(
+                upstreamResponse, requestSnapshot, body, lease.config(), clientType, eventStream);
       } catch (InterruptedException exception) {
         Thread.currentThread().interrupt();
         safeClose(lease);
@@ -321,6 +326,7 @@ public class ProxyController {
     } else {
       builder.setHeader(HttpHeaders.ACCEPT, accept);
     }
+    builder.setHeader(HttpHeaders.ACCEPT_ENCODING, "identity");
     builder.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
     builder.setHeader("originator", CODEX_UPSTREAM_ORIGINATOR);
     builder.setHeader("user-agent", CODEX_UPSTREAM_USER_AGENT);
@@ -380,6 +386,33 @@ public class ProxyController {
     }
   }
 
+  private HttpResponse<InputStream> retryCodexAfterRefreshIfUnauthorized(
+      HttpResponse<InputStream> upstreamResponse,
+      ProxyRequestSnapshot request,
+      byte[] body,
+      UpstreamConfig upstream,
+      ClientType clientType,
+      boolean eventStream)
+      throws IOException, InterruptedException {
+    if (clientType != ClientType.CODEX
+        || upstreamResponse.statusCode() != 401
+        || upstream == null
+        || !upstream.usesCodexProfileRequest()
+        || upstream.codexProfile() == null
+        || upstream.codexProfile().refreshToken() == null
+        || upstream.codexProfile().refreshToken().isBlank()) {
+      return upstreamResponse;
+    }
+    UpstreamConfig refreshed = upstreamRouter.refreshCodexProfile(upstream);
+    if (refreshed == null) {
+      return upstreamResponse;
+    }
+    readAndCloseResponseBody(upstreamResponse);
+    byte[] retryBody = normalizeUpstreamBody(body, refreshed, clientType, eventStream);
+    HttpRequest retryRequest = buildUpstreamRequest(request, retryBody, refreshed, clientType);
+    return httpClient.send(retryRequest, HttpResponse.BodyHandlers.ofInputStream());
+  }
+
   private void normalizeClaudeXiaomiModel(ObjectNode rootObject) {
     JsonNode model = rootObject.get("model");
     if (model == null || model.isNull()) {
@@ -402,6 +435,7 @@ public class ProxyController {
       return;
     }
     putTextIfMissing(rootObject, "model", profile.model());
+    putTextIfMissing(rootObject, "instructions", CODEX_DEFAULT_INSTRUCTIONS);
     if (!rootObject.has("store")) {
       rootObject.put("store", false);
     }
@@ -587,11 +621,6 @@ public class ProxyController {
               requestUri,
               activeUpstreamServiceId);
           try {
-            StreamCopyResult initialHeartbeat = writeCodexHeartbeat(outputStream, responseBuffer, startedAt);
-            responseBytes += initialHeartbeat.responseBytes();
-            firstTokenMs = initialHeartbeat.firstTokenMs();
-            sawFirstChunk = initialHeartbeat.sawFirstChunk();
-
             while (true) {
               activeUpstreamServiceId = activeLease.config().id();
               if (clientType == ClientType.CODEX && activeLease.config().usesCodexProfileRequest()
@@ -605,6 +634,9 @@ public class ProxyController {
               HttpRequest upstreamRequest =
                   buildUpstreamRequest(requestSnapshot, upstreamBody, activeLease.config(), clientType);
               upstreamResponse = httpClient.send(upstreamRequest, HttpResponse.BodyHandlers.ofInputStream());
+              upstreamResponse =
+                  retryCodexAfterRefreshIfUnauthorized(
+                      upstreamResponse, requestSnapshot, requestBody, activeLease.config(), clientType, true);
               upstreamStatus = upstreamResponse.statusCode();
               upstreamContentType = upstreamResponse.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse(null);
 
@@ -899,8 +931,7 @@ public class ProxyController {
         String outboundLine;
         String captureLine;
         if (result == null) {
-          outboundLine = CODEX_SSE_HEARTBEAT;
-          captureLine = CODEX_SSE_HEARTBEAT;
+          continue;
         } else if (result.error() != null) {
           throw new IOException("Unable to read upstream SSE", result.error());
         } else if (result.endOfStream()) {

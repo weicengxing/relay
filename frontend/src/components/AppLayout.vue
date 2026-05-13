@@ -20,6 +20,7 @@ let stopBalanceStream = null;
 let balanceRetryTimer = null;
 let guideCopyTimer = null;
 let disposed = false;
+let balanceRetryDelay = 3000;
 
 const displayBadge = computed(() => (announcementBadge.value > 99 ? '99+' : String(announcementBadge.value)));
 const guideSnippets = {
@@ -99,6 +100,7 @@ function startBalanceStream() {
     onBalance(payload) {
       if (payload?.balance !== undefined) {
         auth.setBalance(payload.balance);
+        balanceRetryDelay = 3000;
       }
     },
     onClose() {
@@ -123,7 +125,9 @@ function handleBalanceStreamStopped() {
     stopBalanceStream = null;
   }
   clearBalanceRetry();
-  balanceRetryTimer = setTimeout(startBalanceStream, 3000);
+  const retryDelay = balanceRetryDelay;
+  balanceRetryDelay = Math.min(balanceRetryDelay * 2, 30000);
+  balanceRetryTimer = setTimeout(startBalanceStream, retryDelay);
 }
 
 function isAuthGone(error) {
@@ -133,6 +137,7 @@ function isAuthGone(error) {
 function endExpiredSession() {
   disposed = true;
   clearBalanceRetry();
+  balanceRetryDelay = 3000;
   if (stopBalanceStream) {
     stopBalanceStream();
     stopBalanceStream = null;

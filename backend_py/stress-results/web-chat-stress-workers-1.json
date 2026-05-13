@@ -1,0 +1,189 @@
+{
+  "target": "http://127.0.0.1:8085/api",
+  "runId": "e5e7016a",
+  "summaries": [
+    {
+      "concurrency": 1,
+      "requests": 4,
+      "success": 2,
+      "failed": 2,
+      "elapsed_s": 30.499,
+      "rps": 0.131,
+      "total_ms": {
+        "avg": 12852.7,
+        "p50": 12162.8,
+        "p95": 12162.8,
+        "p99": 12162.8,
+        "max": 13542.6
+      },
+      "first_event_ms": {
+        "avg": 9518.6,
+        "p50": 8992.0,
+        "p95": 8992.0
+      },
+      "errors": {
+        "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }": 2
+      }
+    },
+    {
+      "concurrency": 2,
+      "requests": 4,
+      "success": 2,
+      "failed": 2,
+      "elapsed_s": 16.023,
+      "rps": 0.25,
+      "total_ms": {
+        "avg": 12574.1,
+        "p50": 12039.4,
+        "p95": 12039.4,
+        "p99": 12039.4,
+        "max": 13108.9
+      },
+      "first_event_ms": {
+        "avg": 9140.8,
+        "p50": 8833.4,
+        "p95": 8833.4
+      },
+      "errors": {
+        "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }": 2
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests": 4,
+      "success": 4,
+      "failed": 0,
+      "elapsed_s": 29.935,
+      "rps": 0.134,
+      "total_ms": {
+        "avg": 18720.9,
+        "p50": 15017.6,
+        "p95": 15548.2,
+        "p99": 15548.2,
+        "max": 29428.1
+      },
+      "first_event_ms": {
+        "avg": 12799.3,
+        "p50": 11465.5,
+        "p95": 12270.5
+      },
+      "errors": {}
+    }
+  ],
+  "results": {
+    "1": [
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 13542.634800076485,
+        "first_event_ms": 10045.244500041008,
+        "bytes_read": 445,
+        "events": 3,
+        "error": null
+      },
+      {
+        "ok": false,
+        "status_code": 200,
+        "total_ms": 2253.432400058955,
+        "first_event_ms": 2253.3856000518426,
+        "bytes_read": 267,
+        "events": 1,
+        "error": "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }"
+      },
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 12162.846599938348,
+        "first_event_ms": 8992.04269994516,
+        "bytes_read": 385,
+        "events": 3,
+        "error": null
+      },
+      {
+        "ok": false,
+        "status_code": 200,
+        "total_ms": 2314.9071999359876,
+        "first_event_ms": 2314.8668999783695,
+        "bytes_read": 267,
+        "events": 1,
+        "error": "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }"
+      }
+    ],
+    "2": [
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 13108.883900102228,
+        "first_event_ms": 9448.26670002658,
+        "bytes_read": 473,
+        "events": 4,
+        "error": null
+      },
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 12039.380499976687,
+        "first_event_ms": 8833.352999994531,
+        "bytes_read": 351,
+        "events": 2,
+        "error": null
+      },
+      {
+        "ok": false,
+        "status_code": 200,
+        "total_ms": 2755.8692999882624,
+        "first_event_ms": 2755.810000002384,
+        "bytes_read": 267,
+        "events": 1,
+        "error": "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }"
+      },
+      {
+        "ok": false,
+        "status_code": 200,
+        "total_ms": 2555.768800084479,
+        "first_event_ms": 2555.728600011207,
+        "bytes_read": 267,
+        "events": 1,
+        "error": "SSE error: {\n                \"detail\": {\n                    \"message\": \"僧多肉少，施主请慢一点，休息10秒\",\n                    \"code\": \"\",\n                    \"clears_in\": 1286\n                }\n            }"
+      }
+    ],
+    "4": [
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 15017.608000081964,
+        "first_event_ms": 11465.512300026603,
+        "bytes_read": 555,
+        "events": 5,
+        "error": null
+      },
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 15548.212299938314,
+        "first_event_ms": 12270.54399996996,
+        "bytes_read": 467,
+        "events": 4,
+        "error": null
+      },
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 14889.577200054191,
+        "first_event_ms": 11457.898500026204,
+        "bytes_read": 485,
+        "events": 4,
+        "error": null
+      },
+      {
+        "ok": true,
+        "status_code": 200,
+        "total_ms": 29428.085699910298,
+        "first_event_ms": 16003.062999923714,
+        "bytes_read": 393,
+        "events": 2,
+        "error": null
+      }
+    ]
+  }
+}
