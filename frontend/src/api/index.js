@@ -19,6 +19,56 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
+function createTimedCache(ttlMs) {
+  let expiresAt = 0;
+  let value;
+  let pending = null;
+
+  return {
+    async get(loader, { force = false } = {}) {
+      const now = Date.now();
+      if (!force && pending) {
+        return pending;
+      }
+      if (!force && expiresAt > now && value !== undefined) {
+        return value;
+      }
+
+      pending = Promise.resolve()
+        .then(loader)
+        .then((nextValue) => {
+          value = nextValue;
+          expiresAt = Date.now() + ttlMs;
+          pending = null;
+          return nextValue;
+        })
+        .catch((error) => {
+          pending = null;
+          throw error;
+        });
+      return pending;
+    },
+    clear() {
+      expiresAt = 0;
+      value = undefined;
+      pending = null;
+    },
+  };
+}
+
+const modelsCache = createTimedCache(60_000);
+const logsCacheByKey = new Map();
+
+function logsCache(limit) {
+  const key = `${getToken() || 'anon'}:${limit}`;
+  let cache = logsCacheByKey.get(key);
+  if (!cache) {
+    cache = createTimedCache(5_000);
+    logsCacheByKey.set(key, cache);
+  }
+  return cache;
+}
+
 export function resolveApiUrl(url) {
   if (!url) return '';
   if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
@@ -91,12 +141,12 @@ export function revokeApiKey(id) {
   });
 }
 
-export function getLogs(limit = 100) {
-  return request(`/request-logs?limit=${limit}`);
+export function getLogs(limit = 100, options = {}) {
+  return logsCache(limit).get(() => request(`/request-logs?limit=${limit}`), options);
 }
 
-export function getModels() {
-  return request('/models');
+export function getModels(options = {}) {
+  return modelsCache.get(() => request('/models'), options);
 }
 
 export function getWebChatSession() {

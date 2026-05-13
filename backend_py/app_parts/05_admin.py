@@ -130,6 +130,7 @@ def admin_set_maintenance(
             """,
             ("maintenance.write_disabled", value, "Disable database write APIs during migration", now_iso()),
         )
+    set_maintenance_write_disabled_cache(payload.writeDisabled)
     return api_ok({"writeDisabled": payload.writeDisabled})
 
 
@@ -374,4 +375,3 @@ def admin_sqlite_execute_sql(
             "statementCount": statement_count,
         }
     )
-

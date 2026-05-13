@@ -97,6 +97,7 @@ async def startup() -> None:
     except Exception:
         pass
     await asyncio.to_thread(init_db)
+    await asyncio.to_thread(refresh_maintenance_write_disabled_cache)
 
 
 @app.get("/api/health")
@@ -105,7 +106,7 @@ async def health() -> dict[str, Any]:
 
 
 @app.get("/api/bootstrap")
-async def bootstrap() -> dict[str, Any]:
+def bootstrap() -> dict[str, Any]:
     return api_ok(
         {
             "status": "ready",

@@ -360,16 +360,42 @@ def maintenance_control_api(func: Any) -> Any:
     return func
 
 
-def maintenance_write_disabled() -> bool:
+_maintenance_state_lock = threading.Lock()
+_maintenance_write_disabled_cache: bool | None = None
+
+
+def set_maintenance_write_disabled_cache(value: bool) -> None:
+    global _maintenance_write_disabled_cache
+    with _maintenance_state_lock:
+        _maintenance_write_disabled_cache = bool(value)
+
+
+def refresh_maintenance_write_disabled_cache() -> bool:
+    global _maintenance_write_disabled_cache
     try:
         with db() as con:
             row = con.execute(
                 "select setting_value from app_settings where setting_key = ?",
                 ("maintenance.write_disabled",),
             ).fetchone()
-        return str(row["setting_value"]).strip().lower() in {"1", "true", "yes", "on"} if row else False
+        value = str(row["setting_value"]).strip().lower() in {"1", "true", "yes", "on"} if row else False
     except sqlite3.Error:
-        return False
+        value = False
+    with _maintenance_state_lock:
+        _maintenance_write_disabled_cache = value
+    return value
+
+
+def maintenance_write_disabled() -> bool:
+    with _maintenance_state_lock:
+        cached = _maintenance_write_disabled_cache
+    return bool(cached)
+
+
+def owner_email_for_user_id(user_id: str) -> str | None:
+    with db() as con:
+        row = con.execute("select email from users where id = ?", (user_id,)).fetchone()
+    return str(row["email"]).lower() if row and row["email"] else None
 
 
 async def maintenance_request_is_owner(request: Request) -> bool:
@@ -377,9 +403,7 @@ async def maintenance_request_is_owner(request: Request) -> bool:
     if authorization and authorization.startswith("Bearer "):
         try:
             user_id = verify_jwt(authorization[len("Bearer ") :].strip())
-            with db() as con:
-                row = con.execute("select email from users where id = ?", (user_id,)).fetchone()
-            if row and str(row["email"]).lower() == OWNER_EMAIL:
+            if await run_in_threadpool(owner_email_for_user_id, user_id) == OWNER_EMAIL:
                 return True
         except Exception:
             pass

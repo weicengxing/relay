@@ -23,7 +23,11 @@ CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_REFRESH_TOKEN_URL = "https://auth.openai.com/oauth/token"
 codex_proxy_logger = logging.getLogger("relay.codex_proxy")
 _codex_refresh_lock = threading.Lock()
-_codex_default_instructions_cache: tuple[float, str | None] | None = None
+_codex_instructions_lock = threading.Lock()
+_codex_default_instructions_cache: tuple[float | None, str | None] = (None, None)
+_codex_instructions_stop = threading.Event()
+_codex_instructions_thread_lock = threading.Lock()
+_codex_instructions_thread: threading.Thread | None = None
 PROXY_API_KEY_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_API_KEY_CACHE_TTL", "3"))
 PROXY_UPSTREAM_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_UPSTREAM_CACHE_TTL", "5"))
 PROXY_BALANCE_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BALANCE_CACHE_TTL", "1"))
@@ -31,6 +35,7 @@ PROXY_BILLING_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BILLING_CACHE_TTL", "3
 PROXY_EXPIRED_REDEEM_CHECK_TTL = float(os.getenv("RELAY_PY_PROXY_EXPIRED_REDEEM_CHECK_TTL", "30"))
 PROXY_LOG_BATCH_SIZE = int(os.getenv("RELAY_PY_PROXY_LOG_BATCH_SIZE", "100"))
 PROXY_LOG_FLUSH_INTERVAL = float(os.getenv("RELAY_PY_PROXY_LOG_FLUSH_INTERVAL", "0.05"))
+CODEX_INSTRUCTIONS_REFRESH_INTERVAL = max(1.0, float(os.getenv("RELAY_PY_CODEX_INSTRUCTIONS_REFRESH_INTERVAL", "5")))
 
 _proxy_cache_lock = threading.Lock()
 _api_key_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -108,7 +113,7 @@ async def proxy_with_body(
     for index, candidate in enumerate(upstreams):
         candidate_limiter: UpstreamLimiter | None = None
         try:
-            upstream_body = normalize_upstream_body(body, candidate, client_type, event_stream)
+            upstream_body = await normalize_upstream_body_async(body, candidate, client_type, event_stream)
             upstream_url = join_upstream_url(upstream_endpoint(candidate), request_uri, query_string)
             headers = build_upstream_headers(request, candidate, client_type, upstream_body)
             upstream_request = client.build_request(request.method, upstream_url, content=upstream_body, headers=headers)
@@ -259,7 +264,7 @@ def lazy_codex_streaming_response(
             for index, candidate in enumerate(upstreams):
                 candidate_limiter: UpstreamLimiter | None = None
                 try:
-                    upstream_body = normalize_upstream_body(body, candidate, client_type, True)
+                    upstream_body = await normalize_upstream_body_async(body, candidate, client_type, True)
                     upstream_url = join_upstream_url(upstream_endpoint(candidate), request_uri, query_string)
                     headers = build_upstream_headers(request, candidate, client_type, upstream_body)
                     upstream_request = client.build_request(
@@ -776,6 +781,16 @@ def normalize_upstream_body(body: bytes, upstream: dict[str, Any], client_type: 
         return body
 
 
+async def normalize_upstream_body_async(
+    body: bytes, upstream: dict[str, Any], client_type: str, event_stream: bool
+) -> bytes:
+    if not body:
+        return body
+    if client_type == "CODEX":
+        return await run_in_threadpool(normalize_upstream_body, body, upstream, client_type, event_stream)
+    return normalize_upstream_body(body, upstream, client_type, event_stream)
+
+
 def open_upstream_client(client_type: str) -> httpx.AsyncClient:
     timeout = httpx.Timeout(connect=10, read=None, write=30, pool=30)
     if client_type == "CODEX":
@@ -816,16 +831,26 @@ async def close_shared_upstream_clients() -> None:
         _shared_upstream_client_ids.clear()
     for client in clients:
         await client.aclose()
+    await run_in_threadpool(stop_codex_instructions_watcher)
 
 
 def codex_default_instructions() -> str | None:
+    with _codex_instructions_lock:
+        return _codex_default_instructions_cache[1]
+
+
+def refresh_codex_default_instructions_cache(force: bool = False) -> str | None:
     global _codex_default_instructions_cache
+    with _codex_instructions_lock:
+        cached_mtime, cached_value = _codex_default_instructions_cache
     try:
         mtime = CODEX_PROFILES_PATH.stat().st_mtime
     except OSError:
+        with _codex_instructions_lock:
+            _codex_default_instructions_cache = (None, None)
         return None
-    if _codex_default_instructions_cache and _codex_default_instructions_cache[0] == mtime:
-        return _codex_default_instructions_cache[1]
+    if not force and cached_mtime == mtime:
+        return cached_value
     try:
         data = json.loads(CODEX_PROFILES_PATH.read_text(encoding="utf-8-sig"))
         defaults = data.get("request_defaults") if isinstance(data, dict) else None
@@ -833,8 +858,37 @@ def codex_default_instructions() -> str | None:
         value = instructions.strip() if isinstance(instructions, str) and instructions.strip() else None
     except Exception:
         value = None
-    _codex_default_instructions_cache = (mtime, value)
+    with _codex_instructions_lock:
+        _codex_default_instructions_cache = (mtime, value)
     return value
+
+
+def codex_instructions_watch_loop() -> None:
+    refresh_codex_default_instructions_cache(force=True)
+    while not _codex_instructions_stop.wait(CODEX_INSTRUCTIONS_REFRESH_INTERVAL):
+        refresh_codex_default_instructions_cache()
+
+
+def start_codex_instructions_watcher() -> None:
+    with _codex_instructions_thread_lock:
+        global _codex_instructions_thread
+        if _codex_instructions_thread and _codex_instructions_thread.is_alive():
+            return
+        _codex_instructions_stop.clear()
+        _codex_instructions_thread = threading.Thread(
+            target=codex_instructions_watch_loop,
+            name="relay-codex-instructions",
+            daemon=True,
+        )
+        _codex_instructions_thread.start()
+
+
+def stop_codex_instructions_watcher() -> None:
+    with _codex_instructions_thread_lock:
+        thread = _codex_instructions_thread
+        _codex_instructions_stop.set()
+    if thread and thread.is_alive():
+        thread.join(timeout=5)
 
 
 def refresh_codex_profile_sync(upstream: dict[str, Any]) -> bool:
@@ -1062,6 +1116,7 @@ atexit.register(proxy_log_writer.stop)
 @app.on_event("startup")
 async def start_proxy_log_writer() -> None:
     proxy_log_writer.start()
+    await run_in_threadpool(start_codex_instructions_watcher)
 
 
 def enqueue_proxy_log_event(event: ProxyLogEvent) -> None:

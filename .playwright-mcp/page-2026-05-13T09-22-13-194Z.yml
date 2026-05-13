@@ -1,0 +1,108 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - img [ref=e8]
+      - generic [ref=e10]: Relay
+    - navigation [ref=e11]:
+      - link "仪表盘" [ref=e12] [cursor=pointer]:
+        - /url: /
+        - img [ref=e14]
+        - generic [ref=e19]: 仪表盘
+      - link "API 密钥" [ref=e20] [cursor=pointer]:
+        - /url: /api-keys
+        - img [ref=e22]
+        - generic [ref=e24]: API 密钥
+      - link "网页对话" [ref=e25] [cursor=pointer]:
+        - /url: /chat
+        - img [ref=e27]
+        - generic [ref=e29]: 网页对话
+      - link "聊天历史" [ref=e30] [cursor=pointer]:
+        - /url: /chat-history
+        - img [ref=e32]
+        - generic [ref=e34]: 聊天历史
+      - link "模型目录" [ref=e35] [cursor=pointer]:
+        - /url: /models
+        - img [ref=e37]
+        - generic [ref=e40]: 模型目录
+      - link "请求日志" [ref=e41] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=e43]
+        - generic [ref=e46]: 请求日志
+      - link "小说广场" [ref=e47] [cursor=pointer]:
+        - /url: /novels
+        - img [ref=e49]
+        - generic [ref=e52]: 小说广场
+      - link "充值" [ref=e53] [cursor=pointer]:
+        - /url: /recharge
+        - img [ref=e55]
+        - generic [ref=e57]: 充值
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]: R
+        - generic [ref=e61]:
+          - generic [ref=e62]: relay-codex-stress
+          - generic [ref=e63]: 999.00$
+      - button "退出登录" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+  - main [ref=e68]:
+    - generic [ref=e69]:
+      - generic [ref=e70]: 新手请看这个😚
+      - button "新手告示" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+      - button "公告" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+    - generic [ref=e78]:
+      - generic [ref=e80]:
+        - heading "仪表盘" [level=1] [ref=e81]
+        - paragraph [ref=e82]: 欢迎回来，relay-codex-stress
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]: 账户余额
+          - generic [ref=e86]: 999.00$
+          - generic [ref=e87]: 可用余额
+        - generic [ref=e88]:
+          - generic [ref=e89]: 账户状态
+          - generic [ref=e90]: 正常
+          - generic [ref=e91]: 所有服务可用
+        - generic [ref=e92]:
+          - generic [ref=e93]: 注册邮箱
+          - generic [ref=e94]: relay-codex-stress@local.test
+          - generic [ref=e95]: 主账户
+      - generic [ref=e96]:
+        - heading "快捷入口" [level=2] [ref=e97]
+        - generic [ref=e98]:
+          - link "API 密钥 管理你的 Key" [ref=e99] [cursor=pointer]:
+            - /url: /api-keys
+            - img [ref=e102]
+            - generic [ref=e104]:
+              - strong [ref=e105]: API 密钥
+              - text: 管理你的 Key
+            - img [ref=e106]
+          - link "网页对话 直接和网页模型聊天" [ref=e108] [cursor=pointer]:
+            - /url: /chat
+            - img [ref=e111]
+            - generic [ref=e113]:
+              - strong [ref=e114]: 网页对话
+              - text: 直接和网页模型聊天
+            - img [ref=e115]
+          - link "模型目录 查看可用模型" [ref=e117] [cursor=pointer]:
+            - /url: /models
+            - img [ref=e120]
+            - generic [ref=e123]:
+              - strong [ref=e124]: 模型目录
+              - text: 查看可用模型
+            - img [ref=e125]
+          - link "请求日志 查看调用记录" [ref=e127] [cursor=pointer]:
+            - /url: /logs
+            - img [ref=e130]
+            - generic [ref=e133]:
+              - strong [ref=e134]: 请求日志
+              - text: 查看调用记录
+            - img [ref=e135]
+          - link "充值 为账户充值" [ref=e137] [cursor=pointer]:
+            - /url: /recharge
+            - img [ref=e140]
+            - generic [ref=e142]:
+              - strong [ref=e143]: 充值
+              - text: 为账户充值
+            - img [ref=e144]

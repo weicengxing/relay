@@ -329,7 +329,7 @@ const navItems = computed(() => (isOwner.value ? [...baseNavItems, adminNavItem]
         </button>
       </div>
       <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
+        <transition name="page">
           <component :is="Component" />
         </transition>
       </router-view>

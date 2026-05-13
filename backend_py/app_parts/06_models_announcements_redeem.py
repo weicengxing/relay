@@ -80,7 +80,7 @@ async def openai_chat_completions(request: Request) -> Response:
         )
 
     try:
-        result = send_web_chat_turn(api_key["user_id"], web_payload, None)
+        result = await run_in_threadpool(send_web_chat_turn, api_key["user_id"], web_payload, None)
     except Exception as exc:
         message = exc.message if isinstance(exc, AppError) else exception_summary(exc)
         return openai_error(502, message)
@@ -88,7 +88,7 @@ async def openai_chat_completions(request: Request) -> Response:
 
 
 @app.get("/api/announcements")
-async def announcements(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def announcements(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     with db() as con:
         rows = con.execute(
@@ -104,7 +104,7 @@ async def announcements(authorization: str | None = Header(default=None)) -> dic
 
 @app.post("/api/announcements/read")
 @db_write_api
-async def mark_announcements_read(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def mark_announcements_read(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     ts = now_iso()
     with db() as con:
@@ -115,7 +115,7 @@ async def mark_announcements_read(authorization: str | None = Header(default=Non
             """,
             (user_id, ts, ts),
         )
-    return await announcements(authorization)
+    return announcements(authorization)
 
 
 def announcement_response(row: sqlite3.Row) -> dict[str, Any]:
