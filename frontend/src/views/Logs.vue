@@ -4,15 +4,50 @@ import * as api from '../api';
 
 const logs = ref([]);
 const loading = ref(false);
+const limit = ref(50);
+const currentCursor = ref('');
+const nextCursor = ref('');
+const cursorStack = ref([]);
+const hasMore = ref(false);
+const pageNumber = computed(() => cursorStack.value.length + 1);
+const canPrev = computed(() => cursorStack.value.length > 0 && !loading.value);
+const canNext = computed(() => hasMore.value && !!nextCursor.value && !loading.value);
 
-onMounted(async () => {
+onMounted(() => {
+  loadLogs('');
+});
+
+async function loadLogs(cursor) {
   loading.value = true;
   try {
-    logs.value = await api.getLogs();
+    const data = await api.getLogs({ limit: limit.value, cursor });
+    if (Array.isArray(data)) {
+      logs.value = data.map(normalizeLog);
+      hasMore.value = false;
+      nextCursor.value = '';
+      return;
+    }
+    logs.value = (data.items || []).map(normalizeLog);
+    hasMore.value = Boolean(data.hasMore);
+    nextCursor.value = data.nextCursor || '';
   } finally {
     loading.value = false;
   }
-});
+}
+
+async function prevPage() {
+  if (!canPrev.value) return;
+  const previousCursor = cursorStack.value.pop() || '';
+  currentCursor.value = previousCursor;
+  await loadLogs(previousCursor);
+}
+
+async function nextPage() {
+  if (!canNext.value) return;
+  cursorStack.value.push(currentCursor.value);
+  currentCursor.value = nextCursor.value;
+  await loadLogs(currentCursor.value);
+}
 
 function formatTokens(value) {
   return new Intl.NumberFormat('en-US').format(Number(value || 0));
@@ -27,6 +62,33 @@ function formatSeconds(ms) {
   if (seconds >= 10) return `${Math.round(seconds)} s`;
   const text = seconds >= 1 ? seconds.toFixed(1) : seconds.toFixed(2);
   return `${Number(text)} s`;
+}
+
+function formatCreatedAt(value) {
+  const date = new Date(value || '');
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
+}
+
+function normalizeLog(log) {
+  if (!log || typeof log !== 'object') return {};
+  return {
+    id: log.id,
+    createdAt: log.createdAt ?? log.created_at,
+    token: log.token ?? log.token_name,
+    group: log.group ?? log.group_key,
+    type: log.type ?? log.requestType ?? log.request_type,
+    model: log.model,
+    useTimeMs: log.useTimeMs ?? log.use_time_ms,
+    firstTokenMs: log.firstTokenMs ?? log.first_token_ms,
+    inputTokens: log.inputTokens ?? log.prompt_tokens,
+    outputTokens: log.outputTokens ?? log.completion_tokens,
+    cacheReadTokens: log.cacheReadTokens ?? log.cache_read_tokens,
+    cacheCreationTokens: log.cacheCreationTokens ?? log.cache_creation_tokens,
+    cost: log.cost,
+    ip: log.ip,
+    status: log.status,
+    upstreamServiceId: log.upstreamServiceId ?? log.upstream_service_id,
+  };
 }
 
 function isStreaming(log) {
@@ -88,7 +150,7 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
           </thead>
           <tbody>
             <tr v-for="log in logs" :key="log.id">
-              <td class="td-muted">{{ new Date(log.createdAt).toLocaleString() }}</td>
+              <td class="td-muted">{{ formatCreatedAt(log.createdAt) }}</td>
               <td><span :class="tokenClass(log.token)">{{ log.token }}</span></td>
               <td><span class="pill type-pill">{{ log.type }}</span></td>
               <td><span class="model-pill">{{ displayModel(log.model) }}</span></td>
@@ -111,6 +173,12 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="!loading && logs.length > 0" class="pager">
+        <button class="pager-btn" type="button" :disabled="!canPrev" @click="prevPage">Prev</button>
+        <span>Page {{ pageNumber }}</span>
+        <button class="pager-btn" type="button" :disabled="!canNext" @click="nextPage">Next</button>
       </div>
     </div>
   </div>
@@ -137,6 +205,49 @@ const emptyTitle = computed(() => (loading.value ? '加载中...' : '暂无请�
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.pager {
+  min-height: 52px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pager span {
+  min-width: 72px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pager-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.pager-btn:hover:not(:disabled) {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-glow);
+}
+
+.pager-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .empty {

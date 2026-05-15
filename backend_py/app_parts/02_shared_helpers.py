@@ -45,6 +45,39 @@ def decode_novel_cursor(cursor: str) -> tuple[str, int]:
         raise AppError(400, "VALIDATION_FAILED", "Invalid novel cursor") from exc
 
 
+def encode_request_log_cursor(row: sqlite3.Row) -> str:
+    payload = {"createdAt": row["created_at"], "id": row["id"]}
+    return b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+
+def decode_request_log_cursor(cursor: str) -> tuple[str, int]:
+    try:
+        payload = json.loads(b64url_decode(cursor).decode("utf-8"))
+        created_at = str(payload["createdAt"])
+        log_id = int(payload["id"])
+        if not created_at or log_id < 1:
+            raise ValueError
+        return created_at, log_id
+    except Exception as exc:
+        raise AppError(400, "VALIDATION_FAILED", "Invalid request log cursor") from exc
+
+
+def encode_rowid_cursor(rowid: Any) -> str:
+    payload = {"rowid": int(rowid)}
+    return b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+
+def decode_rowid_cursor(cursor: str) -> int:
+    try:
+        payload = json.loads(b64url_decode(cursor).decode("utf-8"))
+        rowid = int(payload["rowid"])
+        if rowid < 1:
+            raise ValueError
+        return rowid
+    except Exception as exc:
+        raise AppError(400, "VALIDATION_FAILED", "Invalid row cursor") from exc
+
+
 def trim_slashes(value: Any) -> str:
     return str(value or "").strip().strip("/")
 
@@ -248,11 +281,15 @@ def current_user_id(authorization: str | None) -> str:
     return verify_jwt(bearer_token(authorization))
 
 
+def is_owner_email(email: str | None) -> bool:
+    return str(email or "").strip().lower() in OWNER_EMAIL_ALIASES
+
+
 def current_owner_user_id(authorization: str | None) -> str:
     user_id = current_user_id(authorization)
     with db() as con:
         row = con.execute("select email from users where id = ?", (user_id,)).fetchone()
-    if not row or str(row["email"]).lower() != OWNER_EMAIL:
+    if not row or not is_owner_email(row["email"]):
         raise AppError(403, "FORBIDDEN", "Owner access required")
     return user_id
 
@@ -356,5 +393,4 @@ def model_to_response(row: sqlite3.Row) -> dict[str, Any]:
         "cacheCreationPrice": float(row["cache_creation_price"]),
         "tags": [tag.strip() for tag in (row["tags"] or "").split(",") if tag.strip()],
     }
-
 

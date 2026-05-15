@@ -223,26 +223,39 @@ def admin_credit_user_balance(
 def admin_sqlite_rows(
     table: str,
     limit: int = 100,
-    offset: int = 0,
+    cursor: str = "",
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     current_owner_user_id(authorization)
     limit = max(1, min(int(limit), 500))
-    offset = max(0, int(offset))
+    cursor_rowid = decode_rowid_cursor(cursor.strip()) if cursor.strip() else None
     with db() as con:
         admin_require_table(con, table)
         qname = quote_ident(table)
         columns = admin_columns(con, table)
         total = con.execute(f"select count(*) as count from {qname}").fetchone()["count"]
-        rows = con.execute(f"select rowid as _rowid, * from {qname} order by rowid desc limit ? offset ?", (limit, offset)).fetchall()
+        if cursor_rowid is None:
+            rows = con.execute(
+                f"select rowid as _rowid, * from {qname} order by rowid desc limit ?",
+                (limit + 1,),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                f"select rowid as _rowid, * from {qname} where rowid < ? order by rowid desc limit ?",
+                (cursor_rowid, limit + 1),
+            ).fetchall()
+    page_rows = rows[:limit]
+    has_more = len(rows) > limit
     return api_ok(
         {
             "table": table,
             "columns": columns,
-            "rows": [admin_row_response(row) for row in rows],
+            "rows": [admin_row_response(row) for row in page_rows],
             "limit": limit,
-            "offset": offset,
+            "cursor": cursor.strip(),
             "total": total,
+            "hasMore": has_more,
+            "nextCursor": encode_rowid_cursor(page_rows[-1]["_rowid"]) if has_more and page_rows else "",
         }
     )
 

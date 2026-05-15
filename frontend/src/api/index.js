@@ -57,17 +57,6 @@ function createTimedCache(ttlMs) {
 }
 
 const modelsCache = createTimedCache(60_000);
-const logsCacheByKey = new Map();
-
-function logsCache(limit) {
-  const key = `${getToken() || 'anon'}:${limit}`;
-  let cache = logsCacheByKey.get(key);
-  if (!cache) {
-    cache = createTimedCache(5_000);
-    logsCacheByKey.set(key, cache);
-  }
-  return cache;
-}
 
 export function resolveApiUrl(url) {
   if (!url) return '';
@@ -141,8 +130,15 @@ export function revokeApiKey(id) {
   });
 }
 
-export function getLogs(limit = 100, options = {}) {
-  return logsCache(limit).get(() => request(`/request-logs?limit=${limit}`), options);
+export function getLogs({ limit = 50, cursor = '' } = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+  const trimmedCursor = String(cursor || '').trim();
+  if (trimmedCursor) {
+    params.set('cursor', trimmedCursor);
+  }
+  return request(`/request-logs?${params.toString()}`);
 }
 
 export function getModels(options = {}) {
@@ -463,11 +459,14 @@ export function setAdminMaintenance(writeDisabled) {
   });
 }
 
-export function getAdminTableRows(table, { limit = 100, offset = 0 } = {}) {
+export function getAdminTableRows(table, { limit = 100, cursor = '' } = {}) {
   const params = new URLSearchParams({
     limit: String(limit),
-    offset: String(offset),
   });
+  const trimmedCursor = String(cursor || '').trim();
+  if (trimmedCursor) {
+    params.set('cursor', trimmedCursor);
+  }
   return request(`/admin/sqlite/tables/${encodeURIComponent(table)}/rows?${params.toString()}`);
 }
 

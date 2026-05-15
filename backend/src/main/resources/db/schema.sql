@@ -228,8 +228,8 @@ create table if not exists model_catalog (
 
 create index if not exists idx_api_keys_user_id on api_keys(user_id);
 create index if not exists idx_api_logs_user_id_created_at on api_logs(user_id, created_at desc);
-create index if not exists idx_request_logs_user_id_created_at
-  on request_logs(user_id, created_at desc);
+create index if not exists idx_request_logs_user_id_created_at_id
+  on request_logs(user_id, created_at desc, id desc);
 create index if not exists idx_recharge_orders_user_id_created_at
   on recharge_orders(user_id, created_at desc);
 create index if not exists idx_redeem_codes_holder_user_id

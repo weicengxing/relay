@@ -3,6 +3,8 @@ package com.relay.backend.module.log;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,7 +50,20 @@ public class RequestLogRepository {
         Timestamp.from(log.createdAt()));
   }
 
-  public List<RequestLogRecord> findRecentByUserId(UUID userId, int limit) {
+  public List<RequestLogRecord> findRecentByUserId(UUID userId, Instant cursorCreatedAt, Long cursorId, int limit) {
+    List<Object> args = new ArrayList<>();
+    args.add(userId);
+
+    String cursorClause = "";
+    if (cursorCreatedAt != null && cursorId != null) {
+      cursorClause = "and (created_at < ? or (created_at = ? and id < ?))";
+      Timestamp cursorTimestamp = Timestamp.from(cursorCreatedAt);
+      args.add(cursorTimestamp);
+      args.add(cursorTimestamp);
+      args.add(cursorId);
+    }
+    args.add(limit);
+
     return jdbcTemplate.query(
         """
         select id, user_id, api_key_id, token_name, group_key, request_type, client_type, model,
@@ -56,12 +71,13 @@ public class RequestLogRepository {
                cache_read_tokens, cache_creation_tokens, cost, ip, status, upstream_service_id, detail, created_at
         from request_logs
         where user_id = ?
-        order by created_at desc
+        %s
+        order by created_at desc, id desc
         limit ?
-        """,
+        """
+            .formatted(cursorClause),
         this::mapRow,
-        userId,
-        limit);
+        args.toArray());
   }
 
   private RequestLogRecord mapRow(ResultSet rs, int rowNum) throws SQLException {

@@ -1217,7 +1217,7 @@ def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEv
     next_balances: dict[str, Decimal] = {}
     for event in events:
         usage = apply_cache_read_token_factor(parse_usage(event.request_body, event.response_body), cache_read_factor)
-        cost = calculate_cost_value(usage, prices.get(usage["model"]), multiplier)
+        cost = calculate_cost_value(usage, price_for_model(prices, usage.get("model")), multiplier)
         detail = compact_proxy_log_detail(event, usage)
         rows.append(
             (
@@ -1359,6 +1359,21 @@ def calculate_cost(con: sqlite3.Connection, usage: dict[str, Any], price: sqlite
     _prices, multiplier, cache_read_factor = billing_catalog(con)
     usage = apply_cache_read_token_factor(usage, cache_read_factor)
     return calculate_cost_value(usage, price, multiplier)
+
+
+MODEL_DATE_SUFFIX_RE = re.compile(r"-20\d{2}-\d{1,2}-\d{1,2}$")
+
+
+def price_for_model(prices: dict[str, dict[str, Any]], model: Any) -> dict[str, Any] | None:
+    model_id = str(model or "").strip()
+    if not model_id:
+        return None
+    if model_id in prices:
+        return prices[model_id]
+    normalized = MODEL_DATE_SUFFIX_RE.sub("", model_id)
+    if normalized != model_id:
+        return prices.get(normalized)
+    return None
 
 
 def add_balance(con: sqlite3.Connection, user_id: str, amount: Decimal, *, update_cache: bool = True) -> Decimal:

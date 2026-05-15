@@ -1,0 +1,98 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - img [ref=e8]
+      - generic [ref=e10]: Relay
+    - navigation [ref=e11]:
+      - link "仪表盘" [ref=e12] [cursor=pointer]:
+        - /url: /
+        - img [ref=e14]
+        - generic [ref=e19]: 仪表盘
+      - link "API 密钥" [ref=e20] [cursor=pointer]:
+        - /url: /api-keys
+        - img [ref=e22]
+        - generic [ref=e24]: API 密钥
+      - link "网页对话" [ref=e25] [cursor=pointer]:
+        - /url: /chat
+        - img [ref=e27]
+        - generic [ref=e29]: 网页对话
+      - link "聊天历史" [ref=e30] [cursor=pointer]:
+        - /url: /chat-history
+        - img [ref=e32]
+        - generic [ref=e34]: 聊天历史
+      - link "模型目录" [ref=e35] [cursor=pointer]:
+        - /url: /models
+        - img [ref=e37]
+        - generic [ref=e40]: 模型目录
+      - link "请求日志" [ref=e41] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=e43]
+        - generic [ref=e46]: 请求日志
+      - link "小说广场" [ref=e47] [cursor=pointer]:
+        - /url: /novels
+        - img [ref=e49]
+        - generic [ref=e52]: 小说广场
+      - link "充值" [ref=e53] [cursor=pointer]:
+        - /url: /recharge
+        - img [ref=e55]
+        - generic [ref=e57]: 充值
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]: C
+        - generic [ref=e61]:
+          - generic [ref=e62]: codex-chat-test-20260515160309
+          - generic [ref=e63]: 5.00$
+      - button "退出登录" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+  - main [ref=e68]:
+    - generic [ref=e69]:
+      - generic [ref=e70]: 新手请看这个😚
+      - button "新手告示" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+      - button "公告" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - generic [ref=e107]: "6"
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - button "新建对话" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+        - generic "当前模型" [ref=e82]:
+          - generic [ref=e83]: GPT-5.5-Thinking
+        - generic [ref=e84]:
+          - button "account_3" [expanded] [active] [ref=e108] [cursor=pointer]:
+            - generic [ref=e87]: account_3
+            - img [ref=e88]
+          - menu [ref=e142]:
+            - menuitemradio "account_1 gpt-5-5-thinking" [ref=e143] [cursor=pointer]:
+              - generic [ref=e144]:
+                - generic [ref=e145]: account_1
+                - generic [ref=e146]: gpt-5-5-thinking
+            - menuitemradio "account_2 gpt-5-5-thinking" [ref=e147] [cursor=pointer]:
+              - generic [ref=e148]:
+                - generic [ref=e149]: account_2
+                - generic [ref=e150]: gpt-5-5-thinking
+            - menuitemradio "account_3 gpt-5-5-thinking 默认" [checked] [ref=e151] [cursor=pointer]:
+              - generic [ref=e152]:
+                - generic [ref=e153]: account_3
+                - generic [ref=e154]: gpt-5-5-thinking
+              - generic [ref=e155]: 默认
+            - menuitemradio "account_4 gpt-5-5-thinking" [ref=e156] [cursor=pointer]:
+              - generic [ref=e157]:
+                - generic [ref=e158]: account_4
+                - generic [ref=e159]: gpt-5-5-thinking
+      - generic [ref=e120]:
+        - article [ref=e121]:
+          - paragraph [ref=e125]: 请只回复两个字：正常
+        - article [ref=e126]:
+          - img [ref=e128]
+          - generic [ref=e130]:
+            - generic [ref=e131]: ChatGPT
+            - paragraph [ref=e139]: 模型没有返回文本。
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - button "添加图片" [ref=e99] [cursor=pointer]:
+            - img [ref=e100]
+          - textbox "给 ChatGPT 发送消息" [ref=e102]
+          - button "发送" [disabled] [ref=e103]:
+            - img [ref=e140]
+        - paragraph [ref=e106]: 内容由模型生成，请核对重要信息。

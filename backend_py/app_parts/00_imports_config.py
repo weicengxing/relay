@@ -49,6 +49,7 @@ CODEX_PROFILES_PATH = Path(os.getenv("RELAY_PY_CODEX_PROFILES", r"D:\freeclaude\
 ALLOW_DEV_VERIFY_CODE = os.getenv("RELAY_PY_ALLOW_DEV_VERIFY_CODE", "1") == "1"
 DEFAULT_BALANCE = Decimal("5.000000")
 OWNER_EMAIL = "2997657261@qq.com"
+OWNER_EMAIL_ALIASES = {OWNER_EMAIL, "2997657261"}
 ROOT_PARENT_MESSAGE_ID = "client-created-root"
 SMTP_HOST = os.getenv("QQ_SMTP_HOST", "smtp.qq.com")
 SMTP_PORT = int(os.getenv("QQ_SMTP_PORT", "465"))
@@ -398,12 +399,16 @@ def owner_email_for_user_id(user_id: str) -> str | None:
     return str(row["email"]).lower() if row and row["email"] else None
 
 
+def is_owner_email(email: str | None) -> bool:
+    return str(email or "").strip().lower() in OWNER_EMAIL_ALIASES
+
+
 async def maintenance_request_is_owner(request: Request) -> bool:
     authorization = request.headers.get("authorization")
     if authorization and authorization.startswith("Bearer "):
         try:
             user_id = verify_jwt(authorization[len("Bearer ") :].strip())
-            if await run_in_threadpool(owner_email_for_user_id, user_id) == OWNER_EMAIL:
+            if is_owner_email(await run_in_threadpool(owner_email_for_user_id, user_id)):
                 return True
         except Exception:
             pass
@@ -412,7 +417,7 @@ async def maintenance_request_is_owner(request: Request) -> bool:
         try:
             payload = await request.json()
             email = str(payload.get("email") or "").strip().lower() if isinstance(payload, dict) else ""
-            return email == OWNER_EMAIL
+            return is_owner_email(email)
         except Exception:
             return False
     return False

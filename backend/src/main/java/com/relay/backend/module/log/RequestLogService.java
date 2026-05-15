@@ -1,6 +1,9 @@
 package com.relay.backend.module.log;
 
+import com.relay.backend.common.error.AppException;
+import com.relay.backend.common.error.ErrorCode;
 import com.relay.backend.module.apikey.ApiKeyRecord;
+import com.relay.backend.module.log.dto.RequestLogPageResponse;
 import com.relay.backend.module.log.dto.RequestLogResponse;
 import com.relay.backend.module.proxy.ModelCatalogItem;
 import com.relay.backend.module.proxy.ModelCatalogRepository;
@@ -11,12 +14,14 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
@@ -26,6 +31,8 @@ import tools.jackson.databind.ObjectMapper;
 public class RequestLogService {
 
   private static final Logger log = LoggerFactory.getLogger(RequestLogService.class);
+  private static final Base64.Encoder BASE64_URL = Base64.getUrlEncoder().withoutPadding();
+  private static final Base64.Decoder BASE64_URL_DECODER = Base64.getUrlDecoder();
   private static final BigDecimal MILLION = BigDecimal.valueOf(1_000_000L);
   private static final Pattern MODEL_PATTERN = Pattern.compile("\"model\"\\s*:\\s*\"([^\"]+)\"");
   private static final Pattern NAME_PATTERN = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
@@ -39,6 +46,7 @@ public class RequestLogService {
   private static final Pattern CACHE_READ_PATTERN = Pattern.compile("\"cache_read_input_tokens\"\\s*:\\s*(\\d+)");
   private static final Pattern CACHE_READ_ALT_PATTERN = Pattern.compile("\"cached_tokens\"\\s*:\\s*(\\d+)");
   private static final Pattern CACHE_READ_SIMPLE_PATTERN = Pattern.compile("\"cache_read_tokens\"\\s*:\\s*(\\d+)");
+  private static final Pattern MODEL_DATE_SUFFIX_PATTERN = Pattern.compile("-20\\d{2}-\\d{1,2}-\\d{1,2}$");
   private static final Pattern CACHE_CREATE_PATTERN =
       Pattern.compile("\"cache_creation_input_tokens\"\\s*:\\s*(\\d+)");
   private static final Pattern CACHE_CREATE_ALT_PATTERN =
@@ -104,10 +112,47 @@ public class RequestLogService {
     }
   }
 
-  public List<RequestLogResponse> list(UUID userId, int limit) {
-    return requestLogRepository.findRecentByUserId(userId, limit).stream()
-        .map(this::toResponse)
-        .toList();
+  public RequestLogPageResponse listPage(UUID userId, int limit, String cursor) {
+    Cursor decodedCursor = decodeCursor(cursor);
+    List<RequestLogRecord> records =
+        requestLogRepository.findRecentByUserId(
+            userId,
+            decodedCursor == null ? null : decodedCursor.createdAt(),
+            decodedCursor == null ? null : decodedCursor.id(),
+            limit + 1);
+    boolean hasMore = records.size() > limit;
+    List<RequestLogRecord> pageRecords = hasMore ? records.subList(0, limit) : records;
+    List<RequestLogResponse> items = pageRecords.stream().map(this::toResponse).toList();
+    String nextCursor =
+        hasMore && !pageRecords.isEmpty()
+            ? encodeCursor(pageRecords.get(pageRecords.size() - 1))
+            : "";
+    return new RequestLogPageResponse(items, limit, hasMore, nextCursor);
+  }
+
+  private String encodeCursor(RequestLogRecord record) {
+    String value = record.createdAt() + "|" + record.id();
+    return BASE64_URL.encodeToString(value.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private Cursor decodeCursor(String cursor) {
+    if (cursor == null || cursor.isBlank()) {
+      return null;
+    }
+    try {
+      String value = new String(BASE64_URL_DECODER.decode(cursor.trim()), StandardCharsets.UTF_8);
+      String[] parts = value.split("\\|", 2);
+      if (parts.length != 2) {
+        throw new IllegalArgumentException("Malformed cursor");
+      }
+      Long id = Long.valueOf(parts[1]);
+      if (id < 1) {
+        throw new IllegalArgumentException("Invalid cursor id");
+      }
+      return new Cursor(Instant.parse(parts[0]), id);
+    } catch (Exception exception) {
+      throw new AppException(ErrorCode.VALIDATION_FAILED, "Invalid request log cursor", HttpStatus.BAD_REQUEST);
+    }
   }
 
   private RequestLogResponse toResponse(RequestLogRecord record) {
@@ -417,7 +462,13 @@ public class RequestLogService {
     if (model == null || model.isBlank()) {
       return null;
     }
-    return modelCatalogRepository.findById(model).orElse(null);
+    return modelCatalogRepository
+        .findById(model)
+        .or(() -> {
+          String normalized = MODEL_DATE_SUFFIX_PATTERN.matcher(model).replaceFirst("");
+          return normalized.equals(model) ? java.util.Optional.empty() : modelCatalogRepository.findById(normalized);
+        })
+        .orElse(null);
   }
 
   private BigDecimal calculateCost(ParsedUsage usage, ModelCatalogItem price) {
@@ -488,6 +539,8 @@ public class RequestLogService {
       int outputTokens,
       int cacheReadTokens,
       int cacheCreationTokens) {}
+
+  private record Cursor(Instant createdAt, Long id) {}
 
   private record UsageFields(
       String model,

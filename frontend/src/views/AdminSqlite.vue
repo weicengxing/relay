@@ -7,8 +7,12 @@ const selectedTable = ref('');
 const columns = ref([]);
 const rows = ref([]);
 const total = ref(0);
-const limit = ref(100);
-const offset = ref(0);
+const defaultLimit = 100;
+const compactTableLimit = 30;
+const currentCursor = ref('');
+const nextCursor = ref('');
+const cursorStack = ref([]);
+const hasMore = ref(false);
 const loadingTables = ref(false);
 const loadingRows = ref(false);
 const saving = ref(false);
@@ -16,6 +20,7 @@ const error = ref('');
 const editorOpen = ref(false);
 const editorMode = ref('create');
 const editorText = ref('{}');
+const createValues = ref({});
 const editingRowid = ref(null);
 const editorError = ref('');
 const sqlText = ref("select name from sqlite_master where type = 'table' order by name;");
@@ -36,10 +41,12 @@ const balanceResult = ref('');
 const balanceError = ref('');
 
 const currentTable = computed(() => tables.value.find((table) => table.name === selectedTable.value));
-const pageStart = computed(() => (total.value === 0 ? 0 : offset.value + 1));
-const pageEnd = computed(() => Math.min(offset.value + rows.value.length, total.value));
-const canPrev = computed(() => offset.value > 0);
-const canNext = computed(() => offset.value + rows.value.length < total.value);
+const pageLimit = computed(() => (selectedTable.value === 'request_logs' ? compactTableLimit : defaultLimit));
+const pageStart = computed(() => (total.value === 0 ? 0 : cursorStack.value.length * pageLimit.value + 1));
+const pageEnd = computed(() => Math.min(cursorStack.value.length * pageLimit.value + rows.value.length, total.value));
+const canPrev = computed(() => cursorStack.value.length > 0 && !loadingRows.value);
+const canNext = computed(() => hasMore.value && !!nextCursor.value && !loadingRows.value);
+const insertColumns = computed(() => columns.value.filter((column) => !column.primaryKey && !isAutoTimestampColumn(column)));
 const sqlResultColumns = computed(() => {
   if (sqlResult.value?.columns?.length) return sqlResult.value.columns;
   const first = sqlResult.value?.rows?.[0];
@@ -96,7 +103,7 @@ async function loadTables() {
 async function selectTable(name) {
   if (selectedTable.value === name) return;
   selectedTable.value = name;
-  offset.value = 0;
+  resetCursorPager();
   await loadRows();
 }
 
@@ -106,12 +113,14 @@ async function loadRows() {
   error.value = '';
   try {
     const data = await api.getAdminTableRows(selectedTable.value, {
-      limit: limit.value,
-      offset: offset.value,
+      limit: pageLimit.value,
+      cursor: currentCursor.value,
     });
     columns.value = data.columns || [];
     rows.value = data.rows || [];
     total.value = Number(data.total || 0);
+    hasMore.value = Boolean(data.hasMore);
+    nextCursor.value = data.nextCursor || '';
   } catch (err) {
     error.value = err.message || 'Failed to load rows';
   } finally {
@@ -123,15 +132,23 @@ function refreshAll() {
   return loadTables();
 }
 
+function resetCursorPager() {
+  currentCursor.value = '';
+  nextCursor.value = '';
+  cursorStack.value = [];
+  hasMore.value = false;
+}
+
 function prevPage() {
   if (!canPrev.value) return;
-  offset.value = Math.max(0, offset.value - limit.value);
+  currentCursor.value = cursorStack.value.pop() || '';
   loadRows();
 }
 
 function nextPage() {
   if (!canNext.value) return;
-  offset.value += limit.value;
+  cursorStack.value.push(currentCursor.value);
+  currentCursor.value = nextCursor.value;
   loadRows();
 }
 
@@ -214,7 +231,7 @@ function cancelCellEdit() {
 function openCreate() {
   editorMode.value = 'create';
   editingRowid.value = null;
-  editorText.value = '{\n  \n}';
+  createValues.value = Object.fromEntries(insertColumns.value.map((column) => [column.name, '']));
   editorError.value = '';
   editorOpen.value = true;
 }
@@ -235,15 +252,19 @@ function closeEditor() {
 async function saveEditor() {
   editorError.value = '';
   let values;
-  try {
-    values = JSON.parse(editorText.value || '{}');
-  } catch (err) {
-    editorError.value = 'JSON is invalid';
-    return;
-  }
-  if (!values || Array.isArray(values) || typeof values !== 'object') {
-    editorError.value = 'JSON must be an object';
-    return;
+  if (editorMode.value === 'create') {
+    values = createInsertPayload();
+  } else {
+    try {
+      values = JSON.parse(editorText.value || '{}');
+    } catch (err) {
+      editorError.value = 'JSON is invalid';
+      return;
+    }
+    if (!values || Array.isArray(values) || typeof values !== 'object') {
+      editorError.value = 'JSON must be an object';
+      return;
+    }
   }
 
   saving.value = true;
@@ -260,6 +281,47 @@ async function saveEditor() {
   } finally {
     saving.value = false;
   }
+}
+
+function createInsertPayload() {
+  const payload = insertColumns.value.reduce((nextPayload, column) => {
+    const raw = createValues.value[column.name];
+    const text = String(raw ?? '');
+    if (text === '') return nextPayload;
+    nextPayload[column.name] = parseInsertValue(text, column);
+    return nextPayload;
+  }, {});
+  const now = new Date().toISOString();
+  for (const column of columns.value) {
+    if (column.primaryKey || !isAutoTimestampColumn(column) || payload[column.name] !== undefined) continue;
+    payload[column.name] = now;
+  }
+  return payload;
+}
+
+function parseInsertValue(text, column) {
+  const trimmed = text.trim();
+  if (trimmed.toUpperCase() === 'NULL') return null;
+  const type = String(column.type || '').toUpperCase();
+  if (trimmed !== '' && /(INT|REAL|FLOA|DOUB|NUM|DEC)/.test(type) && !Number.isNaN(Number(trimmed))) {
+    return Number(trimmed);
+  }
+  return text;
+}
+
+function insertPlaceholder(column) {
+  if (column.defaultValue !== null && column.defaultValue !== undefined) {
+    return `Default: ${column.defaultValue}`;
+  }
+  return column.notNull ? 'Required' : 'Blank = skip, NULL = null';
+}
+
+function isAutoTimestampColumn(column) {
+  return /^(created_at|updated_at|published_at|last_seen_at)$/i.test(column.name);
+}
+
+function useInsertTextarea(column) {
+  return /(token|secret|key|detail|content|description|json|text|body|message)/i.test(column.name);
 }
 
 async function deleteRow(row) {
@@ -432,13 +494,6 @@ async function creditBalance() {
           </svg>
           Refresh
         </button>
-        <button class="primary-btn" type="button" @click="openCreate" :disabled="!selectedTable">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-          Add Row
-        </button>
       </div>
     </header>
 
@@ -502,25 +557,27 @@ async function creditBalance() {
     </section>
 
     <section class="admin-shell">
-      <aside class="table-list">
+      <aside class="table-list" @wheel.stop>
         <div class="table-list-head">
           <span>Tables</span>
           <strong>{{ tables.length }}</strong>
         </div>
-        <div v-if="loadingTables" class="state">Loading...</div>
-        <template v-else>
-          <button
-            v-for="table in tables"
-            :key="table.name"
-            class="table-item"
-            :class="{ active: table.name === selectedTable }"
-            type="button"
-            @click="selectTable(table.name)"
-          >
-            <span class="table-name">{{ table.name }}</span>
-            <span class="table-meta">{{ table.rowCount }} rows</span>
-          </button>
-        </template>
+        <div class="table-list-body">
+          <div v-if="loadingTables" class="state">Loading...</div>
+          <template v-else>
+            <button
+              v-for="table in tables"
+              :key="table.name"
+              class="table-item"
+              :class="{ active: table.name === selectedTable }"
+              type="button"
+              @click="selectTable(table.name)"
+            >
+              <span class="table-name">{{ table.name }}</span>
+              <span class="table-meta">{{ table.rowCount }} rows</span>
+            </button>
+          </template>
+        </div>
       </aside>
 
       <main class="data-panel">
@@ -531,18 +588,27 @@ async function creditBalance() {
               {{ currentTable.columnCount }} columns - {{ total }} rows
             </span>
           </div>
-          <div class="pager">
-            <button class="icon-btn" type="button" title="Previous" :disabled="!canPrev" @click="prevPage">
+          <div class="data-toolbar-actions">
+            <button class="primary-btn compact-btn" type="button" @click="openCreate" :disabled="!selectedTable">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m15 18-6-6 6-6" />
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
               </svg>
+              Insert
             </button>
-            <span>{{ pageStart }}-{{ pageEnd }} / {{ total }}</span>
-            <button class="icon-btn" type="button" title="Next" :disabled="!canNext" @click="nextPage">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            </button>
+            <div class="pager">
+              <button class="icon-btn" type="button" title="Previous" :disabled="!canPrev" @click="prevPage">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <span>{{ pageStart }}-{{ pageEnd }} / {{ total }}</span>
+              <button class="icon-btn" type="button" title="Next" :disabled="!canNext" @click="nextPage">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -638,7 +704,7 @@ async function creditBalance() {
         <section class="editor-modal" role="dialog" aria-modal="true" aria-label="Edit SQLite row">
           <header class="editor-head">
             <div>
-              <h2>{{ editorMode === 'create' ? 'Add Row' : 'Edit Row' }}</h2>
+              <h2>{{ editorMode === 'create' ? 'Insert Row' : 'Edit Row' }}</h2>
               <span>{{ selectedTable }}<template v-if="editingRowid"> - rowid {{ editingRowid }}</template></span>
             </div>
             <button class="icon-btn" type="button" title="Close" @click="closeEditor">
@@ -648,7 +714,31 @@ async function creditBalance() {
               </svg>
             </button>
           </header>
-          <textarea v-model="editorText" class="json-editor" spellcheck="false"></textarea>
+          <div v-if="editorMode === 'create'" class="insert-form">
+            <div v-if="!insertColumns.length" class="insert-empty">
+              This table only has primary key fields. Save will insert default values.
+            </div>
+            <label v-for="column in insertColumns" :key="column.name" class="insert-field">
+              <span class="insert-label">
+                <strong>{{ column.name }}</strong>
+                <em>{{ column.type || 'value' }}<template v-if="column.notNull"> | NOT NULL</template></em>
+              </span>
+              <textarea
+                v-if="useInsertTextarea(column)"
+                v-model="createValues[column.name]"
+                class="insert-input insert-textarea"
+                spellcheck="false"
+                :placeholder="insertPlaceholder(column)"
+              ></textarea>
+              <input
+                v-else
+                v-model="createValues[column.name]"
+                class="insert-input"
+                :placeholder="insertPlaceholder(column)"
+              />
+            </label>
+          </div>
+          <textarea v-else v-model="editorText" class="json-editor" spellcheck="false"></textarea>
           <div class="editor-foot">
             <span class="editor-error">{{ editorError }}</span>
             <div class="editor-actions">
@@ -928,10 +1018,13 @@ button:disabled {
 }
 
 .admin-shell {
+  --admin-panel-height: min(720px, calc(100vh - 32px));
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
-  min-height: 620px;
+  align-items: start;
+  height: var(--admin-panel-height);
+  min-height: 520px;
 }
 
 .table-list,
@@ -944,7 +1037,14 @@ button:disabled {
 }
 
 .table-list {
+  position: sticky;
+  top: 16px;
+  height: 100%;
+  max-height: var(--admin-panel-height);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .table-list-head {
@@ -962,6 +1062,13 @@ button:disabled {
 
 .table-list-head strong {
   color: var(--text);
+}
+
+.table-list-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .table-item {
@@ -1001,6 +1108,8 @@ button:disabled {
 }
 
 .data-panel {
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1016,9 +1125,20 @@ button:disabled {
   border-bottom: 1px solid var(--border);
 }
 
+.data-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .data-toolbar h2 {
   font-size: 18px;
   font-weight: 800;
+}
+
+.compact-btn {
+  min-width: 88px;
 }
 
 .pager span {
@@ -1075,6 +1195,7 @@ button:disabled {
 .table-wrap {
   overflow: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .data-table {
@@ -1252,6 +1373,80 @@ button:disabled {
   font: 13px/1.6 'SF Mono', Consolas, monospace;
 }
 
+.insert-form {
+  flex: 1;
+  min-height: 360px;
+  padding: 14px 16px;
+  overflow: auto;
+  background: #fff;
+}
+
+.insert-empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.insert-field {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.insert-field:last-child {
+  border-bottom: 0;
+}
+
+.insert-label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 7px;
+}
+
+.insert-label strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.insert-label em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.insert-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+  font: 13px/1.5 'SF Mono', Consolas, monospace;
+}
+
+.insert-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.insert-textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
 .editor-foot {
   min-height: 58px;
   padding: 10px 14px;
@@ -1279,6 +1474,8 @@ button:disabled {
 
   .admin-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
   }
 
   .balance-panel,
@@ -1292,13 +1489,27 @@ button:disabled {
   }
 
   .table-list {
+    position: static;
+    height: auto;
     max-height: 260px;
-    overflow: auto;
+  }
+
+  .data-toolbar-actions {
+    justify-content: space-between;
   }
 
   .head-actions,
   .editor-actions {
     justify-content: flex-end;
+  }
+
+  .insert-field {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .insert-label {
+    padding-top: 0;
   }
 }
 </style>

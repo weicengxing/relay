@@ -1,0 +1,109 @@
+- generic [ref=e21]:
+  - complementary [ref=e22]:
+    - generic [ref=e24]:
+      - img [ref=e26]
+      - generic [ref=e28]: Relay
+    - navigation [ref=e29]:
+      - link "仪表盘" [ref=e30] [cursor=pointer]:
+        - /url: /
+        - img [ref=e32]
+        - generic [ref=e37]: 仪表盘
+      - link "API 密钥" [ref=e38] [cursor=pointer]:
+        - /url: /api-keys
+        - img [ref=e40]
+        - generic [ref=e42]: API 密钥
+      - link "网页对话" [ref=e43] [cursor=pointer]:
+        - /url: /chat
+        - img [ref=e45]
+        - generic [ref=e47]: 网页对话
+      - link "聊天历史" [ref=e48] [cursor=pointer]:
+        - /url: /chat-history
+        - img [ref=e50]
+        - generic [ref=e52]: 聊天历史
+      - link "模型目录" [ref=e53] [cursor=pointer]:
+        - /url: /models
+        - img [ref=e55]
+        - generic [ref=e58]: 模型目录
+      - link "请求日志" [ref=e59] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=e61]
+        - generic [ref=e64]: 请求日志
+      - link "小说广场" [ref=e65] [cursor=pointer]:
+        - /url: /novels
+        - img [ref=e67]
+        - generic [ref=e70]: 小说广场
+      - link "充值" [ref=e71] [cursor=pointer]:
+        - /url: /recharge
+        - img [ref=e73]
+        - generic [ref=e75]: 充值
+    - generic [ref=e76]:
+      - generic [ref=e77]:
+        - generic [ref=e78]: C
+        - generic [ref=e79]:
+          - generic [ref=e80]: codex-chat-test-20260515160309
+          - generic [ref=e81]: 5.00$
+      - button "退出登录" [ref=e82] [cursor=pointer]:
+        - img [ref=e83]
+  - main [ref=e86]:
+    - generic [ref=e87]:
+      - generic [ref=e88]: 新手请看这个😚
+      - button "新手告示" [ref=e89] [cursor=pointer]:
+        - img [ref=e90]
+      - button "公告" [ref=e92] [cursor=pointer]:
+        - img [ref=e93]
+        - generic [ref=e96]: "6"
+    - generic [ref=e97]:
+      - generic [ref=e99]:
+        - heading "仪表盘" [level=1] [ref=e100]
+        - paragraph [ref=e101]: 欢迎回来，codex-chat-test-20260515160309
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]: 账户余额
+          - generic [ref=e105]: 5.00$
+          - generic [ref=e106]: 可用余额
+        - generic [ref=e107]:
+          - generic [ref=e108]: 账户状态
+          - generic [ref=e109]: 正常
+          - generic [ref=e110]: 所有服务可用
+        - generic [ref=e111]:
+          - generic [ref=e112]: 注册邮箱
+          - generic [ref=e113]: codex-chat-test-20260515160309@example.test
+          - generic [ref=e114]: 主账户
+      - generic [ref=e115]:
+        - heading "快捷入口" [level=2] [ref=e116]
+        - generic [ref=e117]:
+          - link "API 密钥 管理你的 Key" [ref=e118] [cursor=pointer]:
+            - /url: /api-keys
+            - img [ref=e121]
+            - generic [ref=e123]:
+              - strong [ref=e124]: API 密钥
+              - text: 管理你的 Key
+            - img [ref=e125]
+          - link "网页对话 直接和网页模型聊天" [ref=e127] [cursor=pointer]:
+            - /url: /chat
+            - img [ref=e130]
+            - generic [ref=e132]:
+              - strong [ref=e133]: 网页对话
+              - text: 直接和网页模型聊天
+            - img [ref=e134]
+          - link "模型目录 查看可用模型" [ref=e136] [cursor=pointer]:
+            - /url: /models
+            - img [ref=e139]
+            - generic [ref=e142]:
+              - strong [ref=e143]: 模型目录
+              - text: 查看可用模型
+            - img [ref=e144]
+          - link "请求日志 查看调用记录" [ref=e146] [cursor=pointer]:
+            - /url: /logs
+            - img [ref=e149]
+            - generic [ref=e152]:
+              - strong [ref=e153]: 请求日志
+              - text: 查看调用记录
+            - img [ref=e154]
+          - link "充值 为账户充值" [ref=e156] [cursor=pointer]:
+            - /url: /recharge
+            - img [ref=e159]
+            - generic [ref=e161]:
+              - strong [ref=e162]: 充值
+              - text: 为账户充值
+            - img [ref=e163]

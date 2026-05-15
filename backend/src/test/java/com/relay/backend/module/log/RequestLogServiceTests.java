@@ -189,4 +189,76 @@ class RequestLogServiceTests {
     assertThat(saved.completionTokens()).isEqualTo(10);
     assertThat(saved.cost()).isEqualByComparingTo("0.000150");
   }
+
+  @Test
+  void pricesDatedOpenAiModelFromCatalogBaseModel() {
+    RequestLogRepository requestLogRepository = mock(RequestLogRepository.class);
+    ModelCatalogRepository modelCatalogRepository = mock(ModelCatalogRepository.class);
+    UserRepository userRepository = mock(UserRepository.class);
+    BalanceUpdatePublisher balanceUpdatePublisher = mock(BalanceUpdatePublisher.class);
+    BillingSettingsRepository billingSettingsRepository = mock(BillingSettingsRepository.class);
+    UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+    when(billingSettingsRepository.costMultiplier()).thenReturn(BigDecimal.ONE);
+    when(modelCatalogRepository.findById("gpt-5.4-mini-2026-03-17")).thenReturn(Optional.empty());
+    when(modelCatalogRepository.findById("gpt-5.4-mini"))
+        .thenReturn(
+            Optional.of(
+                new ModelCatalogItem(
+                    "gpt-5.4-mini",
+                    "GPT 5.4 Mini",
+                    "OpenAI",
+                    new BigDecimal("0.75"),
+                    new BigDecimal("4.50"),
+                    new BigDecimal("0.075"),
+                    new BigDecimal("0.75"),
+                    List.of())));
+    when(userRepository.deductBalance(userId, new BigDecimal("0.001200")))
+        .thenReturn(new BigDecimal("4.998800"));
+    RequestLogService service =
+        new RequestLogService(
+            requestLogRepository,
+            modelCatalogRepository,
+            userRepository,
+            balanceUpdatePublisher,
+            billingSettingsRepository,
+            new ObjectMapper());
+
+    String response =
+        """
+        data: {"type":"response.completed","response":{"model":"gpt-5.4-mini-2026-03-17","usage":{"input_tokens":1000,"output_tokens":100}}}
+
+        """;
+
+    service.recordProxyRequestAsync(
+        new ProxyRequestLogContext(
+            new ApiKeyRecord(
+                userId,
+                12L,
+                "fedcba0987654321",
+                "relay_test",
+                "mini-key",
+                "active",
+                Instant.parse("2026-05-08T00:00:00Z")),
+            ClientType.CODEX,
+            "POST",
+            "/v1/responses",
+            null,
+            "127.0.0.1",
+            "codex",
+            "{\"model\":\"gpt-5.4-mini\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            response.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            6L,
+            Map.of(),
+            200,
+            1000L,
+            100L));
+
+    ArgumentCaptor<RequestLogRecord> captor = ArgumentCaptor.forClass(RequestLogRecord.class);
+    verify(requestLogRepository).save(captor.capture());
+    RequestLogRecord saved = captor.getValue();
+
+    assertThat(saved.model()).isEqualTo("gpt-5.4-mini-2026-03-17");
+    assertThat(saved.cost()).isEqualByComparingTo("0.001200");
+    verify(userRepository).deductBalance(userId, new BigDecimal("0.001200"));
+  }
 }

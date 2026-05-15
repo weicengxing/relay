@@ -193,23 +193,43 @@ def api_key_response(row: sqlite3.Row) -> dict[str, Any]:
 
 
 @app.get("/api/request-logs")
-def request_logs(limit: int = 100, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def request_logs(
+    limit: int = 100,
+    cursor: str = "",
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     limit = max(1, min(int(limit), 200))
+    conditions = ["user_id = ?"]
+    params: list[Any] = [user_id]
+    trimmed_cursor = cursor.strip()
+    if trimmed_cursor:
+        cursor_created_at, cursor_id = decode_request_log_cursor(trimmed_cursor)
+        conditions.append("(created_at < ? or (created_at = ? and id < ?))")
+        params.extend([cursor_created_at, cursor_created_at, cursor_id])
     with db() as con:
         rows = con.execute(
-            """
+            f"""
             select id, created_at, token_name, group_key, request_type, model, use_time_ms,
                    first_token_ms, prompt_tokens, completion_tokens, cache_read_tokens,
                    cache_creation_tokens, cost, ip, status, upstream_service_id
             from request_logs
-            where user_id = ?
+            where {' and '.join(conditions)}
             order by created_at desc, id desc
             limit ?
             """,
-            (user_id, limit),
+            tuple(params) + (limit + 1,),
         ).fetchall()
-    return api_ok([request_log_response(row) for row in rows])
+    page_rows = rows[:limit]
+    has_more = len(rows) > limit
+    return api_ok(
+        {
+            "items": [request_log_response(row) for row in page_rows],
+            "limit": limit,
+            "hasMore": has_more,
+            "nextCursor": encode_request_log_cursor(page_rows[-1]) if has_more and page_rows else "",
+        }
+    )
 
 
 def request_log_response(row: sqlite3.Row) -> dict[str, Any]:
