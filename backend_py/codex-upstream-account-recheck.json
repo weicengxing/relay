@@ -1,0 +1,137 @@
+{
+  "request": {
+    "model": "gpt-5.4-mini",
+    "instructions": "You are a concise upstream health-check responder.",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "Reply with exactly this JSON: {\"message\":\"codex upstream ok\"}"
+          }
+        ]
+      }
+    ],
+    "store": false,
+    "parallel_tool_calls": true,
+    "reasoning": {
+      "effort": "low"
+    },
+    "stream": true
+  },
+  "profiles": [
+    {
+      "id": 4,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei000_us.ci",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1960,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 5,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "weicengxingzhijue_proton",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1964,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 6,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "hexuxingming",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2041,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 7,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "hexuming",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1952,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 8,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "weicengxing_proton",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1956,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 9,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei001_us.ci",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2024,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 10,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei000",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2047,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 12,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "local_codex",
+      "base_url": "",
+      "model": "",
+      "reasoning_effort": "",
+      "access_token_len": 23,
+      "openai_api_key_len": 0
+    }
+  ],
+  "result": {
+    "url": "http://127.0.0.1:8085/v1/responses",
+    "status_code": 200,
+    "total_ms": 3923.8,
+    "first_event_ms": 3409.3,
+    "bytes_read": 7886,
+    "event_counts": {
+      "keepalive": 1,
+      "response.created": 1,
+      "response.in_progress": 1,
+      "response.output_item.added": 2,
+      "response.output_item.done": 2,
+      "response.content_part.added": 1,
+      "response.output_text.delta": 8,
+      "response.output_text.done": 1,
+      "response.content_part.done": 1,
+      "response.completed": 1
+    },
+    "text_preview": "{\"message\":\"codex upstream ok\"}{\"message\":\"codex upstream ok\"}",
+    "errors": [],
+    "raw_preview": [
+      "{\"type\":\"response.created\",\"response\":{\"id\":\"resp_018e3806fe82b45c016a05eb9df2148191b0179a39b5245b9e\",\"object\":\"response\",\"created_at\":1778772893,\"status\":\"in_progress\",\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":\"You are a concise upstream health-check responder.\",\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-5.4-mini-2026-03-17\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"d0bb7470-0db2-47c5-9fe9-4f3b69699217\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"effort\":\"low\",\"summary\":null},\"safety_identifier\":\"user-QWWBsPlZMQMTbkJK8vZuZD86\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_token",
+      "{\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_018e3806fe82b45c016a05eb9df2148191b0179a39b5245b9e\",\"object\":\"response\",\"created_at\":1778772893,\"status\":\"in_progress\",\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":\"You are a concise upstream health-check responder.\",\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-5.4-mini-2026-03-17\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"d0bb7470-0db2-47c5-9fe9-4f3b69699217\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"effort\":\"low\",\"summary\":null},\"safety_identifier\":\"user-QWWBsPlZMQMTbkJK8vZuZD86\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_t",
+      "{\"type\":\"response.output_item.added\",\"item\":{\"id\":\"rs_018e3806fe82b45c016a05eb9e98d8819184e97e3d308628ce\",\"type\":\"reasoning\",\"summary\":[]},\"output_index\":0,\"sequence_number\":2}",
+      "{\"type\":\"response.output_item.done\",\"item\":{\"id\":\"rs_018e3806fe82b45c016a05eb9e98d8819184e97e3d308628ce\",\"type\":\"reasoning\",\"summary\":[]},\"output_index\":0,\"sequence_number\":3}",
+      "{\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_018e3806fe82b45c016a05eb9ead308191af86e36533da7020\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":1,\"sequence_number\":4}",
+      "{\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_018e3806fe82b45c016a05eb9ead308191af86e36533da7020\",\"output_index\":1,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":5}",
+      "{\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"{\\\"\",\"item_id\":\"msg_018e3806fe82b45c016a05eb9ead308191af86e36533da7020\",\"logprobs\":[],\"obfuscation\":\"l8bQsaQezGNmyH\",\"output_index\":1,\"sequence_number\":6}",
+      "{\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"message\",\"item_id\":\"msg_018e3806fe82b45c016a05eb9ead308191af86e36533da7020\",\"logprobs\":[],\"obfuscation\":\"UOZCQZarx\",\"output_index\":1,\"sequence_number\":7}"
+    ]
+  }
+}

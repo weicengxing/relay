@@ -158,7 +158,7 @@ async function handleRedeem() {
         <ul>
           <li>充值申请提交后需要管理员审核</li>
           <li>审核通过后余额会自动更新</li>
-          <li>如有问题请联系管理员QQ 2997657261 微信号 DIQIUZUIQIANGNANREN</li>
+          <li>如有问题请联系管理员QQ 2629430873 微信号 DIQIUZUIQIANGNANREN</li>
           <li>管理员也只是一个清澈大学生，请多担待，但绝对秉持赤城之心为大家服务</li>
           <li>任何中转站一般很难维持稳定，建议不要大额充值~~</li>
           <li>支持自定义金额充值</li>

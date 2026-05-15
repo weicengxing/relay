@@ -153,6 +153,17 @@ export function getWebChatSession() {
   return request('/web-chat/session');
 }
 
+export function getWebChatConfigs() {
+  return request('/web-chat/configs');
+}
+
+export function switchWebChatConfig(configId) {
+  return request('/web-chat/session/config', {
+    method: 'PUT',
+    body: JSON.stringify({ configId }),
+  });
+}
+
 export function sendWebChatMessage({ message, newConversation = false, model, images = [] } = {}) {
   return request('/web-chat/messages', {
     method: 'POST',

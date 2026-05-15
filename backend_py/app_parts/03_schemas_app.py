@@ -25,6 +25,10 @@ class WebChatMessageRequest(BaseModel):
     images: list[dict[str, Any]] | None = []
 
 
+class WebChatConfigSelectRequest(BaseModel):
+    configId: int
+
+
 class RedeemCodeRequest(BaseModel):
     code: str
 

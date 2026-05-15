@@ -28,10 +28,10 @@ _codex_default_instructions_cache: tuple[float | None, str | None] = (None, None
 _codex_instructions_stop = threading.Event()
 _codex_instructions_thread_lock = threading.Lock()
 _codex_instructions_thread: threading.Thread | None = None
-PROXY_API_KEY_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_API_KEY_CACHE_TTL", "3"))
-PROXY_UPSTREAM_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_UPSTREAM_CACHE_TTL", "5"))
+PROXY_API_KEY_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_API_KEY_CACHE_TTL", "600"))
+PROXY_UPSTREAM_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_UPSTREAM_CACHE_TTL", "inf"))
 PROXY_BALANCE_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BALANCE_CACHE_TTL", "1"))
-PROXY_BILLING_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BILLING_CACHE_TTL", "30"))
+PROXY_BILLING_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BILLING_CACHE_TTL", "inf"))
 PROXY_EXPIRED_REDEEM_CHECK_TTL = float(os.getenv("RELAY_PY_PROXY_EXPIRED_REDEEM_CHECK_TTL", "30"))
 PROXY_LOG_BATCH_SIZE = int(os.getenv("RELAY_PY_PROXY_LOG_BATCH_SIZE", "100"))
 PROXY_LOG_FLUSH_INTERVAL = float(os.getenv("RELAY_PY_PROXY_LOG_FLUSH_INTERVAL", "0.05"))
@@ -42,7 +42,7 @@ _api_key_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _upstream_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _balance_cache: dict[str, tuple[float, Decimal]] = {}
 _expired_redeem_check_cache: dict[str, float] = {}
-_billing_catalog_cache: tuple[float, dict[str, dict[str, Any]], Decimal] | None = None
+_billing_catalog_cache: tuple[float, dict[str, dict[str, Any]], Decimal, Decimal] | None = None
 _upstream_limiter_lock = threading.Lock()
 _upstream_limiters: dict[tuple[str, int, int], "UpstreamLimiter"] = {}
 _upstream_client_lock = threading.Lock()
@@ -1123,16 +1123,17 @@ def enqueue_proxy_log_event(event: ProxyLogEvent) -> None:
     proxy_log_writer.submit(event)
 
 
-def billing_catalog(con: sqlite3.Connection) -> tuple[dict[str, dict[str, Any]], Decimal]:
+def billing_catalog(con: sqlite3.Connection) -> tuple[dict[str, dict[str, Any]], Decimal, Decimal]:
     global _billing_catalog_cache
     now = time.monotonic()
     if _billing_catalog_cache and _billing_catalog_cache[0] > now:
-        return _billing_catalog_cache[1], _billing_catalog_cache[2]
+        return _billing_catalog_cache[1], _billing_catalog_cache[2], _billing_catalog_cache[3]
     rows = con.execute("select * from model_catalog where enabled = 1").fetchall()
     prices = {row["id"]: row_to_dict(row) for row in rows}
     multiplier = parse_decimal(setting(con, "billing.cost_multiplier", "1.2"))
-    _billing_catalog_cache = (now + PROXY_BILLING_CACHE_TTL, prices, multiplier)
-    return prices, multiplier
+    cache_read_factor = positive_decimal(setting(con, "billing.cache_read_token_factor", "0.8"), Decimal("0.8"))
+    _billing_catalog_cache = (now + PROXY_BILLING_CACHE_TTL, prices, multiplier, cache_read_factor)
+    return prices, multiplier, cache_read_factor
 
 
 def calculate_cost_value(usage: dict[str, Any], price: dict[str, Any] | sqlite3.Row | None, multiplier: Decimal) -> Decimal:
@@ -1146,6 +1147,12 @@ def calculate_cost_value(usage: dict[str, Any], price: dict[str, Any] | sqlite3.
         + parse_decimal(price["cache_creation_price"]) * usage["cache_create"]
     ) / Decimal(1_000_000)
     return (cost * multiplier).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+
+def apply_cache_read_token_factor(usage: dict[str, Any], factor: Decimal) -> dict[str, Any]:
+    adjusted = int((Decimal(usage["cache_read"]) * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    adjusted = max(0, adjusted)
+    return {**usage, "cache_read": adjusted}
 
 
 def compact_proxy_log_detail(event: ProxyLogEvent, usage: dict[str, Any]) -> str:
@@ -1204,12 +1211,12 @@ def proxy_response_summary(response_body: bytes) -> dict[str, Any]:
 
 
 def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEvent]) -> None:
-    prices, multiplier = billing_catalog(con)
+    prices, multiplier, cache_read_factor = billing_catalog(con)
     rows: list[tuple[Any, ...]] = []
     balance_deltas: dict[str, Decimal] = {}
     next_balances: dict[str, Decimal] = {}
     for event in events:
-        usage = parse_usage(event.request_body, event.response_body)
+        usage = apply_cache_read_token_factor(parse_usage(event.request_body, event.response_body), cache_read_factor)
         cost = calculate_cost_value(usage, prices.get(usage["model"]), multiplier)
         detail = compact_proxy_log_detail(event, usage)
         rows.append(
@@ -1349,7 +1356,8 @@ def usage_from_payload(payload: Any) -> dict[str, Any]:
 
 
 def calculate_cost(con: sqlite3.Connection, usage: dict[str, Any], price: sqlite3.Row | None) -> Decimal:
-    multiplier = parse_decimal(setting(con, "billing.cost_multiplier", "1.2"))
+    _prices, multiplier, cache_read_factor = billing_catalog(con)
+    usage = apply_cache_read_token_factor(usage, cache_read_factor)
     return calculate_cost_value(usage, price, multiplier)
 
 
@@ -1393,6 +1401,14 @@ def deduct_expired_redeem_codes(con: sqlite3.Connection, user_id: str) -> Decima
 def setting(con: sqlite3.Connection, key: str, default: str) -> str:
     row = con.execute("select setting_value from app_settings where setting_key = ?", (key,)).fetchone()
     return row["setting_value"] if row else default
+
+
+def positive_decimal(value: str | None, fallback: Decimal) -> Decimal:
+    try:
+        parsed = parse_decimal(value)
+        return parsed if parsed > 0 else fallback
+    except Exception:
+        return fallback
 
 
 def bool_setting(con: sqlite3.Connection, key: str, default: bool) -> bool:

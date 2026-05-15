@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import * as api from '../api';
 import OpenAIIcon from '../components/OpenAIIcon.vue';
 
@@ -13,10 +13,17 @@ const newConversation = ref(false);
 const messageList = ref(null);
 const fileInput = ref(null);
 const imageAttachments = ref([]);
+const accountConfigs = ref([]);
+const accountMenuOpen = ref(false);
+const accountSwitching = ref(false);
+const accountMenuRef = ref(null);
 
 const modelLabel = computed(() => 'GPT-5.5-Thinking');
 const configLabel = computed(() => session.value?.configName || '默认配置');
 const hasMessages = computed(() => messages.value.length > 0);
+const canSwitchAccount = computed(() => (
+  accountConfigs.value.length > 0 && !loading.value && !pageLoading.value && !accountSwitching.value
+));
 
 const promptStarters = [
   '帮我总结这段内容',
@@ -33,12 +40,52 @@ async function loadSession() {
   pageLoading.value = true;
   error.value = '';
   try {
-    session.value = await api.getWebChatSession();
+    setSession(await api.getWebChatSession());
   } catch (err) {
     error.value = err.message || '加载对话配置失败';
   } finally {
     pageLoading.value = false;
   }
+}
+
+function setSession(nextSession) {
+  session.value = nextSession;
+  if (Array.isArray(nextSession?.configs)) {
+    accountConfigs.value = nextSession.configs;
+  }
+}
+
+function toggleAccountMenu() {
+  if (!canSwitchAccount.value) return;
+  accountMenuOpen.value = !accountMenuOpen.value;
+}
+
+function closeAccountMenu() {
+  accountMenuOpen.value = false;
+}
+
+async function selectAccountConfig(config) {
+  if (!config || !canSwitchAccount.value) return;
+  closeAccountMenu();
+  if (Number(config.id) === Number(session.value?.configId)) return;
+  accountSwitching.value = true;
+  error.value = '';
+  try {
+    setSession(await api.switchWebChatConfig(config.id));
+    messages.value = [];
+    imageAttachments.value = [];
+    newConversation.value = true;
+  } catch (err) {
+    error.value = err.message || '切换账号失败';
+  } finally {
+    accountSwitching.value = false;
+  }
+}
+
+function handleDocumentClick(event) {
+  if (!accountMenuOpen.value) return;
+  if (accountMenuRef.value?.contains(event.target)) return;
+  closeAccountMenu();
 }
 
 async function scrollToBottom() {
@@ -297,7 +344,7 @@ async function startNewConversation() {
   messages.value = [];
   newConversation.value = true;
   try {
-    session.value = await api.resetWebChatConversation();
+    setSession(await api.resetWebChatConversation());
   } catch (err) {
     error.value = err.message || '重置对话失败';
   }
@@ -668,7 +715,14 @@ function handleKeydown(event) {
   }
 }
 
-onMounted(loadSession);
+onMounted(() => {
+  loadSession();
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
 </script>
 
 <template>
@@ -685,9 +739,41 @@ onMounted(loadSession);
         <span>{{ modelLabel }}</span>
       </div>
 
-      <div class="config-pill">
-        <span class="status-dot"></span>
-        <span>{{ pageLoading ? '加载中' : configLabel }}</span>
+      <div ref="accountMenuRef" class="account-menu-wrap">
+        <button
+          type="button"
+          class="config-pill account-trigger"
+          :disabled="!canSwitchAccount"
+          :aria-expanded="accountMenuOpen"
+          aria-haspopup="menu"
+          title="选择网页聊天账号"
+          @click.stop="toggleAccountMenu"
+        >
+          <span class="status-dot"></span>
+          <span>{{ accountSwitching ? '切换中' : pageLoading ? '加载中' : configLabel }}</span>
+          <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        <div v-if="accountMenuOpen" class="account-menu" role="menu">
+          <button
+            v-for="config in accountConfigs"
+            :key="config.id"
+            type="button"
+            class="account-option"
+            :class="{ active: Number(config.id) === Number(session?.configId) }"
+            role="menuitemradio"
+            :aria-checked="Number(config.id) === Number(session?.configId)"
+            @click="selectAccountConfig(config)"
+          >
+            <span class="account-option-main">
+              <span class="account-option-name">{{ config.name }}</span>
+              <span class="account-option-model">{{ config.model }}</span>
+            </span>
+            <span v-if="config.default" class="account-badge">默认</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -918,6 +1004,11 @@ onMounted(loadSession);
   white-space: nowrap;
 }
 
+.account-menu-wrap {
+  position: relative;
+  justify-self: end;
+}
+
 .config-pill {
   max-width: 210px;
   height: 30px;
@@ -929,13 +1020,108 @@ onMounted(loadSession);
   gap: 7px;
   color: var(--chat-muted);
   background: #fff;
+  font: inherit;
   font-size: 12px;
   white-space: nowrap;
 }
 
-.config-pill span:last-child {
+.account-trigger {
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+
+.account-trigger:hover:not(:disabled),
+.account-trigger[aria-expanded="true"] {
+  border-color: rgba(16, 163, 127, 0.36);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.08);
+}
+
+.account-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.config-pill > span:not(.status-dot) {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chevron {
+  flex: 0 0 auto;
+}
+
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 280px;
+  max-height: min(360px, calc(100vh - 140px));
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--chat-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.16);
+  z-index: 20;
+}
+
+.account-option {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--chat-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-option:hover,
+.account-option.active {
+  background: var(--chat-soft);
+}
+
+.account-option.active {
+  box-shadow: inset 3px 0 0 var(--chat-accent);
+}
+
+.account-option-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.account-option-name,
+.account-option-model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-option-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-option-model {
+  color: var(--chat-muted);
+  font-size: 12px;
+}
+
+.account-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(16, 163, 127, 0.24);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #08785f;
+  background: rgba(16, 163, 127, 0.08);
+  font-size: 11px;
 }
 
 .status-dot {
@@ -1589,11 +1775,11 @@ onMounted(loadSession);
   }
 
   .chat-topbar {
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: 40px minmax(0, 1fr) auto;
   }
 
   .config-pill {
-    display: none;
+    max-width: 160px;
   }
 }
 
@@ -1612,6 +1798,20 @@ onMounted(loadSession);
   .model-chip {
     justify-self: start;
     font-size: 14px;
+  }
+
+  .account-trigger {
+    max-width: 44px;
+    padding: 0 9px;
+  }
+
+  .account-trigger > span:not(.status-dot),
+  .account-trigger .chevron {
+    display: none;
+  }
+
+  .account-menu {
+    width: min(280px, calc(100vw - 24px));
   }
 
   .welcome-panel {

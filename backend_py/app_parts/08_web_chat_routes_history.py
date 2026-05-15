@@ -1,7 +1,29 @@
 @app.get("/api/web-chat/session")
 @db_write_api
 def web_chat_session(authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    return api_ok(session_response(find_or_create_web_session(current_user_id(authorization))))
+    return api_ok(web_chat_session_payload(current_user_id(authorization)))
+
+
+@app.get("/api/web-chat/configs")
+@db_write_api
+def web_chat_configs(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user_id = current_user_id(authorization)
+    session = find_or_create_web_session(user_id)
+    return api_ok(
+        {
+            "current": session_response(session),
+            "items": list_web_chat_configs(user_id, int(session["id"])),
+        }
+    )
+
+
+@app.put("/api/web-chat/session/config")
+@db_write_api
+def update_web_chat_config(
+    payload: WebChatConfigSelectRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    return api_ok(switch_web_chat_config(current_user_id(authorization), payload.configId))
 
 
 @app.post("/api/web-chat/conversation/reset")
@@ -20,7 +42,7 @@ def reset_web_chat(authorization: str | None = Header(default=None)) -> dict[str
         )
     session["conversation_id"] = None
     session["parent_message_id"] = ROOT_PARENT_MESSAGE_ID
-    return api_ok(session_response(session))
+    return api_ok(web_chat_session_payload(user_id))
 
 
 @app.post("/api/web-chat/messages")
@@ -340,4 +362,3 @@ def append_web_chat_history(
         """,
         (written["url"], written["size"], int(target["turn_count"] or 0) + 1, now_iso(), target["id"]),
     )
-

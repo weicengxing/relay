@@ -15,7 +15,7 @@ def find_or_create_web_session(user_id: str) -> dict[str, Any]:
         configs = con.execute("select * from web_chat_model_configs where enabled = 1 order by id").fetchall()
         if not configs:
             raise AppError(404, "NOT_FOUND", "No web chat model config is enabled")
-        config = configs[abs(hash(user_id)) % len(configs)]
+        config = default_web_chat_config(user_id, configs)
         con.execute(
             """
             insert into web_chat_user_sessions(user_id, config_id, conversation_id, parent_message_id, updated_at)
@@ -34,6 +34,67 @@ def find_or_create_web_session(user_id: str) -> dict[str, Any]:
                 (user_id,),
             ).fetchone()
         )
+
+
+def default_web_chat_config(user_id: str, configs: list[sqlite3.Row]) -> sqlite3.Row:
+    digest = hashlib.sha256(user_id.encode("utf-8")).digest()
+    index = int.from_bytes(digest[:8], "big") % len(configs)
+    return configs[index]
+
+
+def web_chat_config_response(config: sqlite3.Row | dict[str, Any], current_id: int | None, default_id: int | None) -> dict[str, Any]:
+    config_id = int(config["id"])
+    return {
+        "id": config_id,
+        "name": config["name"],
+        "model": first_non_blank(config["model"], DEFAULT_WEB_MODEL),
+        "current": current_id == config_id,
+        "default": default_id == config_id,
+    }
+
+
+def list_web_chat_configs(user_id: str, current_id: int | None = None) -> list[dict[str, Any]]:
+    with db() as con:
+        configs = con.execute("select id, name, model from web_chat_model_configs where enabled = 1 order by id").fetchall()
+    if not configs:
+        return []
+    default_id = int(default_web_chat_config(user_id, configs)["id"])
+    return [web_chat_config_response(config, current_id, default_id) for config in configs]
+
+
+def web_chat_session_payload(user_id: str) -> dict[str, Any]:
+    session = find_or_create_web_session(user_id)
+    payload = session_response(session)
+    payload["configs"] = list_web_chat_configs(user_id, int(session["id"]))
+    return payload
+
+
+def switch_web_chat_config(user_id: str, config_id: int) -> dict[str, Any]:
+    with db() as con:
+        config = con.execute(
+            "select * from web_chat_model_configs where id = ? and enabled = 1",
+            (config_id,),
+        ).fetchone()
+        if not config:
+            raise AppError(404, "NOT_FOUND", "Web chat config is not available")
+        current = con.execute(
+            "select config_id from web_chat_user_sessions where user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not current or int(current["config_id"]) != int(config_id):
+            con.execute(
+                """
+                insert into web_chat_user_sessions(user_id, config_id, conversation_id, parent_message_id, updated_at)
+                values (?, ?, null, ?, ?)
+                on conflict(user_id) do update set
+                  config_id=excluded.config_id,
+                  conversation_id=null,
+                  parent_message_id=excluded.parent_message_id,
+                  updated_at=excluded.updated_at
+                """,
+                (user_id, config_id, ROOT_PARENT_MESSAGE_ID, now_iso()),
+            )
+    return web_chat_session_payload(user_id)
 
 
 def session_response(session: dict[str, Any]) -> dict[str, Any]:
@@ -275,4 +336,3 @@ def stream_web_chat_turn(user_id: str, request_payload: WebChatMessageRequest) -
         )
         append_web_chat_history(con, user_id, request_payload, result_payload)
     yield result_payload
-

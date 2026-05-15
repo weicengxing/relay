@@ -1,0 +1,37 @@
+{
+  "summary": {
+    "service_id": 6,
+    "profile_name": "hexuxingming",
+    "configured_concurrent_limit": 10,
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "concurrency": 1,
+    "requests": 1,
+    "success": 1,
+    "failed": 0,
+    "elapsed_s": 3.397,
+    "rps": 0.294,
+    "total_ms": {
+      "avg": 2455.6,
+      "p50": 2455.6,
+      "p95": 2455.6,
+      "max": 2455.6
+    },
+    "first_event_ms": {
+      "avg": 952.3,
+      "p50": 952.3,
+      "p95": 952.3
+    },
+    "errors": {}
+  },
+  "results": [
+    {
+      "ok": true,
+      "status_code": 200,
+      "total_ms": 2455.5594000266865,
+      "first_event_ms": 952.2621999494731,
+      "bytes_read": 7813,
+      "completed": true,
+      "error": null
+    }
+  ]
+}

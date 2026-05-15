@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "service_id": 5,
+    "profile_name": "weicengxingzhijue_proton",
+    "configured_concurrent_limit": 10,
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "concurrency": 1,
+    "requests": 1,
+    "success": 0,
+    "failed": 1,
+    "elapsed_s": 2.505,
+    "rps": 0.399,
+    "total_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null,
+      "max": null
+    },
+    "first_event_ms": {
+      "avg": null,
+      "p50": null,
+      "p95": null
+    },
+    "errors": {
+      "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778987160,\"eligible_promo\":null,\"resets_in_seconds\":216556}}": 1
+    }
+  },
+  "results": [
+    {
+      "ok": false,
+      "status_code": 429,
+      "total_ms": 1430.879299994558,
+      "first_event_ms": null,
+      "bytes_read": 176,
+      "completed": false,
+      "error": "HTTP 429: {\"error\":{\"type\":\"usage_limit_reached\",\"message\":\"The usage limit has been reached\",\"plan_type\":\"free\",\"resets_at\":1778987160,\"eligible_promo\":null,\"resets_in_seconds\":216556}}"
+    }
+  ]
+}
