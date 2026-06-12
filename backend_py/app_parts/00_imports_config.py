@@ -4,6 +4,7 @@ import atexit
 import base64
 import asyncio
 import copy
+import concurrent.futures
 import hashlib
 import hmac
 import html as html_lib
@@ -29,13 +30,14 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, AsyncIterable, Iterable
 from urllib import request as urllib_request
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import quote, urlencode, urljoin, urlparse
 
 import httpx
 import anyio.to_thread
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -47,6 +49,7 @@ JWT_SECRET = os.getenv("RELAY_PY_JWT_SECRET", "relay-python-dev-secret-change-me
 CHAT_PROFILES_PATH = Path(os.getenv("RELAY_PY_CHAT_PROFILES", r"D:\freeclaude\chat_profiles.json"))
 CODEX_PROFILES_PATH = Path(os.getenv("RELAY_PY_CODEX_PROFILES", r"D:\freeclaude\codex_profiles.json"))
 ALLOW_DEV_VERIFY_CODE = os.getenv("RELAY_PY_ALLOW_DEV_VERIFY_CODE", "1") == "1"
+EMAIL_REGISTER_ENABLED = os.getenv("EMAIL_REGISTER_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_BALANCE = Decimal("5.000000")
 OWNER_EMAIL = "2997657261@qq.com"
 OWNER_EMAIL_ALIASES = {OWNER_EMAIL, "2997657261"}
@@ -60,6 +63,12 @@ VERIFICATION_CODE_TTL_MINUTES = int(os.getenv("VERIFICATION_CODE_TTL_MINUTES", "
 TURNSTILE_SECRET = os.getenv("TURNSTILE_SECRET", "")
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "0x4AAAAAADMr7AGgokgaUM6z")
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+DC_AUTH_ENABLED = os.getenv("DC_AUTH_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+DC_AUTH_ORIGIN = os.getenv("DC_AUTH_ORIGIN", "https://dc.hhhl.cc").rstrip("/")
+DC_AUTH_APP_SECRET = os.getenv("DC_AUTH_APP_SECRET", "").strip()
+DC_AUTH_PUBLIC_API_BASE_URL = os.getenv("DC_AUTH_PUBLIC_API_BASE_URL", "").strip().rstrip("/")
+DC_AUTH_FRONTEND_BASE_URL = os.getenv("DC_AUTH_FRONTEND_BASE_URL", "").strip().rstrip("/")
+DC_AUTH_STATE_TTL_SECONDS = int(os.getenv("DC_AUTH_STATE_TTL_SECONDS", "600"))
 DEFAULT_WEB_MODEL = "gpt-5-3"
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

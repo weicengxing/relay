@@ -45,11 +45,55 @@ class ProxyControllerTests {
                     "token",
                     1,
                     20,
+                    false,
+                    "",
                     null),
                 ClientType.CLAUDE,
                 false);
 
     assertThat(new String(normalized, java.nio.charset.StandardCharsets.UTF_8))
         .contains("\"model\":\"mimo-v2.5-pro\"");
+  }
+
+  @Test
+  void replacesCodexModelWhenServiceRequiresIt() throws Exception {
+    ProxyController controller =
+        new ProxyController(
+            mock(ApiKeyService.class),
+            mock(ClientTypeDetector.class),
+            mock(CodexRequestCaptureService.class),
+            mock(UpstreamRouter.class),
+            mock(RequestLogService.class),
+            mock(UserRepository.class),
+            mock(ClientIpResolver.class),
+            new ObjectMapper());
+
+    Method method =
+        ProxyController.class.getDeclaredMethod(
+            "normalizeUpstreamBody", byte[].class, UpstreamConfig.class, ClientType.class, boolean.class);
+    method.setAccessible(true);
+
+    byte[] normalized =
+        (byte[])
+            method.invoke(
+                controller,
+                """
+                {"model":"gpt-5.3-codex","input":"hi"}
+                """
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                new UpstreamConfig(
+                    1L,
+                    "https://chatgpt.com/backend-api/codex",
+                    "token",
+                    2,
+                    20,
+                    true,
+                    "gpt-5.5",
+                    null),
+                ClientType.CODEX,
+                false);
+
+    assertThat(new String(normalized, java.nio.charset.StandardCharsets.UTF_8))
+        .contains("\"model\":\"gpt-5.5\"");
   }
 }

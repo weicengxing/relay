@@ -96,6 +96,7 @@ def codex_profiles_summary(db_path: Path) -> list[dict[str, Any]]:
                    length(coalesce(p.openai_api_key, '')) as openai_api_key_len
             from openai_services s
             join openai_codex_profiles p on p.openai_service_id = s.id
+            where s.enabled = 1
             order by s.id
             """
         ).fetchall()

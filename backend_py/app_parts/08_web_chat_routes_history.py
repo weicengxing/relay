@@ -289,13 +289,19 @@ def history_source_response(source: dict[str, Any]) -> dict[str, Any]:
 
 def create_chat_history_file(con: sqlite3.Connection, user_id: str, sequence: int) -> sqlite3.Row:
     ts = now_iso()
-    con.execute(
-        """
-        insert into web_chat_history_files
-          (user_id, sequence, object_key, content_url, size_bytes, turn_count, created_at, updated_at)
-        values (?, ?, ?, '', 0, 0, ?, ?)
-        """,
-        (user_id, sequence, chat_history_object_key(user_id, sequence), ts, ts),
+    insert_with_next_integer_id(
+        con,
+        "web_chat_history_files",
+        {
+            "user_id": user_id,
+            "sequence": sequence,
+            "object_key": chat_history_object_key(user_id, sequence),
+            "content_url": "",
+            "size_bytes": 0,
+            "turn_count": 0,
+            "created_at": ts,
+            "updated_at": ts,
+        },
     )
     return con.execute(
         "select * from web_chat_history_files where user_id = ? and sequence = ?", (user_id, sequence)

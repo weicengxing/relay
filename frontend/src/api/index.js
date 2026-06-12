@@ -98,6 +98,11 @@ export function login(email, password) {
   });
 }
 
+export function dcLoginUrl(redirect = '/') {
+  const params = new URLSearchParams({ redirect });
+  return `${BASE}/auth/dc/start?${params.toString()}`;
+}
+
 export function sendRegisterCode(email) {
   return request('/auth/register-code', {
     method: 'POST',

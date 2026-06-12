@@ -1,0 +1,113 @@
+{
+  "request": {
+    "model": "gpt-5.5",
+    "instructions": "You are a concise upstream health-check responder.",
+    "input": [
+      {
+        "type": "message",
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "Reply with exactly this JSON: {\"message\":\"codex upstream ok\"}"
+          }
+        ]
+      }
+    ],
+    "store": false,
+    "parallel_tool_calls": true,
+    "reasoning": {
+      "effort": "low"
+    },
+    "stream": true
+  },
+  "profiles": [
+    {
+      "id": 5,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "weicengxingzhijue_proton",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1964,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 6,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "hexuxingming",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2041,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 7,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "hexuming",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1952,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 8,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "weicengxing_proton",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1956,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 9,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei001_us.ci",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2024,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 10,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei000",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 2047,
+      "openai_api_key_len": 0
+    },
+    {
+      "id": 404,
+      "api_endpoint": "https://chatgpt.com/backend-api/codex",
+      "profile_name": "wei000_us.ci",
+      "base_url": "https://chatgpt.com/backend-api/codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "access_token_len": 1960,
+      "openai_api_key_len": 0
+    }
+  ],
+  "result": {
+    "url": "http://127.0.0.1:8085/v1/responses",
+    "status_code": 200,
+    "total_ms": 71445.4,
+    "first_event_ms": 71444.5,
+    "bytes_read": 101,
+    "event_counts": {
+      "error": 1
+    },
+    "text_preview": "",
+    "errors": [
+      "{\"error\": {\"message\": \"ConnectTimeout\", \"type\": \"relay_error\", \"code\": \"relay_error\"}}"
+    ],
+    "raw_preview": [
+      "{\"error\":{\"message\":\"ConnectTimeout\",\"type\":\"relay_error\",\"code\":\"relay_error\"}}"
+    ]
+  }
+}

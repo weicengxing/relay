@@ -1,0 +1,12 @@
+- generic [ref=e107]:
+  - img [ref=e110]
+  - heading "欢迎回来" [level=1] [ref=e112]
+  - paragraph [ref=e113]: 登录你的 Relay 账户
+  - generic [ref=e114]:
+    - generic [ref=e115]
+    - generic [ref=e118]
+    - button "登录" [ref=e121] [cursor=pointer]
+  - paragraph [ref=e122]:
+    - text: 还没有账号？
+    - link "创建账号" [ref=e123] [cursor=pointer]:
+      - /url: /register

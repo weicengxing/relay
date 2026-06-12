@@ -1,0 +1,74 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - img [ref=e8]
+      - generic [ref=e10]: Relay
+    - navigation [ref=e11]:
+      - link "仪表盘" [ref=e12] [cursor=pointer]:
+        - /url: /
+        - img [ref=e14]
+        - generic [ref=e19]: 仪表盘
+      - link "API 密钥" [ref=e20] [cursor=pointer]:
+        - /url: /api-keys
+        - img [ref=e22]
+        - generic [ref=e24]: API 密钥
+      - link "网页对话" [ref=e25] [cursor=pointer]:
+        - /url: /chat
+        - img [ref=e27]
+        - generic [ref=e29]: 网页对话
+      - link "聊天历史" [ref=e30] [cursor=pointer]:
+        - /url: /chat-history
+        - img [ref=e32]
+        - generic [ref=e34]: 聊天历史
+      - link "模型目录" [ref=e35] [cursor=pointer]:
+        - /url: /models
+        - img [ref=e37]
+        - generic [ref=e40]: 模型目录
+      - link "请求日志" [ref=e41] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=e43]
+        - generic [ref=e46]: 请求日志
+      - link "小说广场" [ref=e47] [cursor=pointer]:
+        - /url: /novels
+        - img [ref=e49]
+        - generic [ref=e52]: 小说广场
+      - link "充值" [ref=e53] [cursor=pointer]:
+        - /url: /recharge
+        - img [ref=e55]
+        - generic [ref=e57]: 充值
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]: D
+        - generic [ref=e61]:
+          - generic [ref=e62]: dev
+          - generic [ref=e63]: 1.00$
+      - button "退出登录" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+  - main [ref=e68]:
+    - generic [ref=e69]:
+      - generic [ref=e70]: 新手请看这个😚
+      - button "新手告示" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+      - button "公告" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - button "新建对话" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+        - generic "当前模型" [ref=e82]:
+          - generic [ref=e83]: GPT-5.5-Thinking
+        - button "加载中" [disabled] [ref=e85]:
+          - generic [ref=e87]: 加载中
+          - img [ref=e88]
+      - generic [ref=e91]:
+        - img [ref=e93]
+        - heading "正在连接模型" [level=1] [ref=e95]
+        - paragraph [ref=e96]: 稍等一下，马上就好。
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - button "添加图片" [disabled] [ref=e99]:
+            - img [ref=e100]
+          - textbox "给 ChatGPT 发送消息" [disabled] [ref=e102]
+          - button "发送" [disabled] [ref=e103]:
+            - img [ref=e104]
+        - paragraph [ref=e106]: 内容由模型生成，请核对重要信息。

@@ -1,0 +1,18 @@
+- generic [ref=e108]:
+  - img [ref=e111]
+  - heading "欢迎回来" [level=1] [ref=e113]
+  - paragraph [ref=e114]: 登录你的 Relay 账户
+  - generic [ref=e115]:
+    - generic [ref=e116]:
+      - generic [ref=e117]: 邮箱
+      - textbox "邮箱" [ref=e118]:
+        - /placeholder: your@qq.com
+    - generic [ref=e119]:
+      - generic [ref=e120]: 密码
+      - textbox "密码" [ref=e121]:
+        - /placeholder: 输入密码
+    - button "登录" [ref=e122] [cursor=pointer]
+  - paragraph [ref=e123]:
+    - text: 还没有账号？
+    - link "创建账号" [ref=e124] [cursor=pointer]:
+      - /url: /register

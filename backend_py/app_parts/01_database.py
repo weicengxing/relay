@@ -5,11 +5,103 @@ def db() -> Iterable[sqlite3.Connection]:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.execute("PRAGMA busy_timeout = 5000")
+    before_changes = con.total_changes
     try:
         yield con
+        if con.in_transaction or con.total_changes != before_changes:
+            sync_sqlite_sequences(con)
         con.commit()
     finally:
         con.close()
+
+
+def quote_ident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def sync_sqlite_sequences(con: sqlite3.Connection) -> None:
+    exists = con.execute(
+        "select 1 from sqlite_master where type = 'table' and name = 'sqlite_sequence'"
+    ).fetchone()
+    if not exists:
+        return
+    rows = con.execute("select name from sqlite_sequence").fetchall()
+    for row in rows:
+        table = row["name"]
+        table_exists = con.execute(
+            "select 1 from sqlite_master where type = 'table' and name = ?",
+            (table,),
+        ).fetchone()
+        if not table_exists:
+            continue
+        columns = con.execute(f"pragma table_info({quote_ident(table)})").fetchall()
+        pk_columns = [column for column in columns if int(column["pk"] or 0) > 0]
+        if len(pk_columns) != 1:
+            continue
+        pk_column = pk_columns[0]
+        if "int" not in str(pk_column["type"] or "").lower():
+            continue
+        pk_name = pk_column["name"]
+        max_id = con.execute(
+            f"select coalesce(max({quote_ident(pk_name)}), 0) from {quote_ident(table)}"
+        ).fetchone()[0]
+        con.execute(
+            "update sqlite_sequence set seq = ? where name = ? and seq <> ?",
+            (int(max_id or 0), table, int(max_id or 0)),
+        )
+
+
+def integer_primary_key_column(con: sqlite3.Connection, table: str) -> str | None:
+    columns = con.execute(f"pragma table_info({quote_ident(table)})").fetchall()
+    pk_columns = [column for column in columns if int(column["pk"] or 0) > 0]
+    if len(pk_columns) != 1:
+        return None
+    pk_column = pk_columns[0]
+    if "int" not in str(pk_column["type"] or "").lower():
+        return None
+    return str(pk_column["name"])
+
+
+def next_integer_primary_key(con: sqlite3.Connection, table: str) -> int | None:
+    pk_name = integer_primary_key_column(con, table)
+    if not pk_name:
+        return None
+    if not con.in_transaction:
+        con.execute("BEGIN IMMEDIATE")
+    value = con.execute(
+        f"select coalesce(max({quote_ident(pk_name)}), 0) + 1 from {quote_ident(table)}"
+    ).fetchone()[0]
+    return int(value or 1)
+
+
+def insert_with_next_integer_id(
+    con: sqlite3.Connection,
+    table: str,
+    values: dict[str, Any],
+    suffix_sql: str = "",
+) -> sqlite3.Cursor:
+    names = list(values.keys())
+    if not names:
+        sql = f"insert into {quote_ident(table)} default values"
+        if suffix_sql.strip():
+            sql += "\n" + suffix_sql.strip()
+        return con.execute(sql)
+    sql = (
+        f"insert into {quote_ident(table)} ({', '.join(quote_ident(name) for name in names)}) "
+        f"values ({', '.join('?' for _ in names)})"
+    )
+    if suffix_sql.strip():
+        sql += "\n" + suffix_sql.strip()
+    return con.execute(sql, [values[name] for name in names])
+
+
+def with_next_integer_ids(
+    con: sqlite3.Connection,
+    table: str,
+    columns: list[str],
+    rows: list[tuple[Any, ...]],
+) -> tuple[list[str], list[tuple[Any, ...]]]:
+    return columns, rows
 
 
 def init_db() -> None:
@@ -31,6 +123,25 @@ def init_db() -> None:
               email text primary key,
               code text not null,
               expires_at text not null
+            );
+            create table if not exists dc_oauth_states (
+              state text primary key,
+              session_token text unique,
+              redirect_url text not null,
+              created_at text not null,
+              expires_at text not null
+            );
+            create table if not exists user_oauth_bindings (
+              provider text not null,
+              provider_user_id text not null,
+              user_id text not null references users(id) on delete cascade,
+              provider_username text not null default '',
+              provider_name text not null default '',
+              provider_avatar_url text not null default '',
+              created_at text not null,
+              updated_at text not null,
+              primary key (provider, provider_user_id),
+              unique (provider, user_id)
             );
             create table if not exists api_keys (
               id integer primary key autoincrement,
@@ -73,6 +184,21 @@ def init_db() -> None:
               detail text not null default '',
               created_at text not null
             );
+            create table if not exists codex_user_messages (
+              id integer primary key autoincrement,
+              user_id text not null references users(id) on delete cascade,
+              api_key_id integer not null references api_keys(id) on delete cascade,
+              request_uri text not null,
+              request_id text,
+              session_id text,
+              turn_id text,
+              previous_response_id text,
+              model text,
+              message_text text not null,
+              message_hash text not null,
+              dedupe_key text not null unique,
+              created_at text not null
+            );
             create table if not exists recharge_orders (
               id integer primary key autoincrement,
               user_id text not null references users(id) on delete cascade,
@@ -110,9 +236,11 @@ def init_db() -> None:
             create table if not exists redeem_codes (
               id integer primary key autoincrement,
               code text unique not null,
+              batch text not null default 'default',
               amount text not null,
               expires_at text not null,
               holder_user_id text references users(id),
+              redeemed_ip text,
               redeemed_at text,
               expired_deducted_at text,
               created_at text not null,
@@ -135,6 +263,9 @@ def init_db() -> None:
               api_endpoint text not null,
               token text not null,
               concurrent_limit integer not null default 20,
+              enabled integer not null default 1,
+              force_replace_codex_model integer not null default 0,
+              codex_replacement_model text not null default '',
               created_at text not null,
               updated_at text not null
             );
@@ -153,6 +284,14 @@ def init_db() -> None:
               model text,
               reasoning_effort text,
               last_refresh text,
+              created_at text not null,
+              updated_at text not null
+            );
+            create table if not exists openai_mode3_services (
+              id integer primary key autoincrement,
+              openai_service_id integer not null unique references openai_services(id) on delete cascade,
+              sort_order integer not null default 0,
+              enabled integer not null default 1,
               created_at text not null,
               updated_at text not null
             );
@@ -236,10 +375,30 @@ def init_db() -> None:
               on web_chat_history_files(user_id, updated_at desc);
             create index if not exists idx_request_logs_user_created
               on request_logs(user_id, created_at desc, id desc);
+            create index if not exists idx_codex_user_messages_user_created
+              on codex_user_messages(user_id, created_at desc, id desc);
+            create index if not exists idx_codex_user_messages_turn_id
+              on codex_user_messages(turn_id);
             create index if not exists idx_model_catalog_enabled_sort
               on model_catalog(enabled, sort_order, id);
+            create index if not exists idx_openai_mode3_services_enabled_sort
+              on openai_mode3_services(enabled, sort_order, id);
             create index if not exists idx_announcements_active_published
               on announcements(active, published_at desc, id desc);
+            create index if not exists idx_redeem_codes_holder_user_id
+              on redeem_codes(holder_user_id);
+            create index if not exists idx_redeem_codes_expires_at
+              on redeem_codes(expires_at);
+            create index if not exists idx_redeem_codes_batch
+              on redeem_codes(batch);
+            create unique index if not exists idx_redeem_codes_batch_holder_user_id
+              on redeem_codes(batch, holder_user_id)
+              where holder_user_id is not null;
+            create unique index if not exists idx_redeem_codes_batch_redeemed_ip
+              on redeem_codes(batch, redeemed_ip)
+              where redeemed_ip is not null and redeemed_ip <> '';
+            create index if not exists idx_user_oauth_bindings_user_id
+              on user_oauth_bindings(user_id);
             """
         )
         normalize_sqlite_schema(con)
@@ -247,6 +406,85 @@ def init_db() -> None:
 
 
 def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
+    ensure_columns(
+        con,
+        "openai_services",
+        {
+            "enabled": "integer not null default 1",
+            "force_replace_codex_model": "integer not null default 0",
+            "codex_replacement_model": "text not null default ''",
+        },
+    )
+    ensure_columns(
+        con,
+        "redeem_codes",
+        {
+            "batch": "text not null default 'default'",
+            "redeemed_ip": "text",
+        },
+    )
+    con.executescript(
+        """
+        create table if not exists codex_user_messages (
+          id integer primary key autoincrement,
+          user_id text not null references users(id) on delete cascade,
+          api_key_id integer not null references api_keys(id) on delete cascade,
+          request_uri text not null,
+          request_id text,
+          session_id text,
+          turn_id text,
+          previous_response_id text,
+          model text,
+          message_text text not null,
+          message_hash text not null,
+          dedupe_key text not null unique,
+          created_at text not null
+        );
+        create index if not exists idx_codex_user_messages_user_created
+          on codex_user_messages(user_id, created_at desc, id desc);
+        create index if not exists idx_codex_user_messages_turn_id
+          on codex_user_messages(turn_id);
+        create table if not exists openai_mode3_services (
+          id integer primary key autoincrement,
+          openai_service_id integer not null unique references openai_services(id) on delete cascade,
+          sort_order integer not null default 0,
+          enabled integer not null default 1,
+          created_at text not null,
+          updated_at text not null
+        );
+        create index if not exists idx_openai_mode3_services_enabled_sort
+          on openai_mode3_services(enabled, sort_order, id);
+        create table if not exists dc_oauth_states (
+          state text primary key,
+          session_token text unique,
+          redirect_url text not null,
+          created_at text not null,
+          expires_at text not null
+        );
+        create table if not exists user_oauth_bindings (
+          provider text not null,
+          provider_user_id text not null,
+          user_id text not null references users(id) on delete cascade,
+          provider_username text not null default '',
+          provider_name text not null default '',
+          provider_avatar_url text not null default '',
+          created_at text not null,
+          updated_at text not null,
+          primary key (provider, provider_user_id),
+          unique (provider, user_id)
+        );
+        create index if not exists idx_user_oauth_bindings_user_id
+          on user_oauth_bindings(user_id);
+        create index if not exists idx_redeem_codes_batch
+          on redeem_codes(batch);
+        create unique index if not exists idx_redeem_codes_batch_holder_user_id
+          on redeem_codes(batch, holder_user_id)
+          where holder_user_id is not null;
+        create unique index if not exists idx_redeem_codes_batch_redeemed_ip
+          on redeem_codes(batch, redeemed_ip)
+          where redeemed_ip is not null and redeemed_ip <> '';
+        """
+    )
     expected_novel_columns = [
         "id",
         "user_id",
@@ -332,10 +570,12 @@ def rebuild_novels_table(con: sqlite3.Connection) -> None:
 def seed_defaults(con: sqlite3.Connection) -> None:
     ts = now_iso()
     settings = [
-        ("openai.request_mode", "2", "1 = token forwarding, 2 = codex profile request mode"),
+        ("openai.request_mode", "2", "1 = token forwarding, 2 = codex profile request mode, 3 = configured service rotation"),
+        ("openai.mode3_batch_size", "8", "Mode 3 requests sent consecutively to one upstream before rotating"),
         ("openai.concurrent_limit", "20", "Global concurrent request limit"),
         ("billing.cost_multiplier", "1.2", "Cost multiplier"),
         ("billing.cache_read_token_factor", "0.8", "Factor applied to cache read tokens before logging and billing"),
+        ("codex.refresh_enabled", "false", "Enable scheduled Codex profile refresh every 6 days"),
         ("announcements.badge_default", "0", "Default announcement badge count"),
         ("maintenance.write_disabled", "false", "Disable database write APIs during migration"),
         ("auth.turnstile_enabled", "true", "Require Cloudflare Turnstile verification during registration"),
@@ -398,13 +638,28 @@ def import_chat_profiles(con: sqlite3.Connection) -> None:
         name = profile.get("name") or f"account_{idx + 1}"
         if is_placeholder(profile.get("bearer_token")) and is_placeholder(profile.get("cookie")):
             continue
-        con.execute(
+        insert_with_next_integer_id(
+            con,
+            "web_chat_model_configs",
+            {
+                "name": str(name),
+                "base_url": profile.get("base_url") or data.get("base_url") or "https://chat.sharedchat.cc",
+                "model": profile.get("model") or default_model,
+                "auth_header": profile.get("auth_header"),
+                "bearer_token": profile.get("bearer_token"),
+                "account_id": profile.get("account_id"),
+                "conduit_token": profile.get("conduit_token"),
+                "sentinel_token": profile.get("sentinel_token"),
+                "cookie": profile.get("cookie"),
+                "oai_device_id": profile.get("oai_device_id"),
+                "oai_session_id": profile.get("oai_session_id"),
+                "user_agent": profile.get("user_agent"),
+                "call_prepare": 1 if profile.get("call_prepare", data.get("call_prepare", False)) else 0,
+                "enabled": 1,
+                "created_at": ts,
+                "updated_at": ts,
+            },
             """
-            insert into web_chat_model_configs
-              (name, base_url, model, auth_header, bearer_token, account_id, conduit_token,
-               sentinel_token, cookie, oai_device_id, oai_session_id, user_agent, call_prepare,
-               enabled, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict(name) do update set
               base_url=excluded.base_url, model=excluded.model, auth_header=excluded.auth_header,
               bearer_token=excluded.bearer_token, account_id=excluded.account_id,
@@ -413,24 +668,6 @@ def import_chat_profiles(con: sqlite3.Connection) -> None:
               oai_session_id=excluded.oai_session_id, user_agent=excluded.user_agent,
               call_prepare=excluded.call_prepare, enabled=excluded.enabled, updated_at=excluded.updated_at
             """,
-            (
-                str(name),
-                profile.get("base_url") or data.get("base_url") or "https://chat.sharedchat.cc",
-                profile.get("model") or default_model,
-                profile.get("auth_header"),
-                profile.get("bearer_token"),
-                profile.get("account_id"),
-                profile.get("conduit_token"),
-                profile.get("sentinel_token"),
-                profile.get("cookie"),
-                profile.get("oai_device_id"),
-                profile.get("oai_session_id"),
-                profile.get("user_agent"),
-                1 if profile.get("call_prepare", data.get("call_prepare", False)) else 0,
-                1,
-                ts,
-                ts,
-            ),
         )
 
 
@@ -472,17 +709,39 @@ def import_codex_profiles(con: sqlite3.Connection) -> None:
                 (base_url, access_token or openai_key or "", ts, service_id),
             )
         else:
-            con.execute(
-                "insert into openai_services(api_endpoint, token, concurrent_limit, created_at, updated_at) values (?, ?, ?, ?, ?)",
-                (base_url, access_token or openai_key or "", 20, ts, ts),
+            cur = insert_with_next_integer_id(
+                con,
+                "openai_services",
+                {
+                    "api_endpoint": base_url,
+                    "token": access_token or openai_key or "",
+                    "concurrent_limit": 20,
+                    "created_at": ts,
+                    "updated_at": ts,
+                },
             )
-            service_id = con.execute("select last_insert_rowid()").fetchone()[0]
-        con.execute(
+            service_id = cur.lastrowid
+        insert_with_next_integer_id(
+            con,
+            "openai_codex_profiles",
+            {
+                "openai_service_id": service_id,
+                "profile_name": profile_name,
+                "auth_mode": profile.get("auth_mode") or "chatgpt",
+                "openai_api_key": openai_key,
+                "access_token": access_token,
+                "account_id": tokens.get("account_id") or profile.get("account_id"),
+                "id_token": tokens.get("id_token") or profile.get("id_token"),
+                "refresh_token": tokens.get("refresh_token") or profile.get("refresh_token"),
+                "client_id": profile.get("client_id") or data.get("client_id"),
+                "base_url": base_url,
+                "model": first_non_blank(profile.get("model"), defaults.get("model"), "gpt-5.5"),
+                "reasoning_effort": first_non_blank(profile.get("reasoning_effort"), defaults.get("reasoning_effort"), "high"),
+                "last_refresh": profile.get("last_refresh"),
+                "created_at": ts,
+                "updated_at": ts,
+            },
             """
-            insert into openai_codex_profiles
-              (openai_service_id, profile_name, auth_mode, openai_api_key, access_token, account_id,
-               id_token, refresh_token, client_id, base_url, model, reasoning_effort, last_refresh, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict(openai_service_id) do update set
               profile_name=excluded.profile_name, auth_mode=excluded.auth_mode,
               openai_api_key=excluded.openai_api_key, access_token=excluded.access_token,
@@ -491,23 +750,6 @@ def import_codex_profiles(con: sqlite3.Connection) -> None:
               model=excluded.model, reasoning_effort=excluded.reasoning_effort,
               last_refresh=excluded.last_refresh, updated_at=excluded.updated_at
             """,
-            (
-                service_id,
-                profile_name,
-                profile.get("auth_mode") or "chatgpt",
-                openai_key,
-                access_token,
-                tokens.get("account_id") or profile.get("account_id"),
-                tokens.get("id_token") or profile.get("id_token"),
-                tokens.get("refresh_token") or profile.get("refresh_token"),
-                profile.get("client_id") or data.get("client_id"),
-                base_url,
-                first_non_blank(profile.get("model"), defaults.get("model"), "gpt-5.5"),
-                first_non_blank(profile.get("reasoning_effort"), defaults.get("reasoning_effort"), "high"),
-                profile.get("last_refresh"),
-                ts,
-                ts,
-            ),
         )
 
 

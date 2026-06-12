@@ -21,6 +21,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('balance', String(data.balance));
   }
 
+  function loginWithSession(data) {
+    saveSession(data);
+    return data;
+  }
+
   async function register(emailAddr, password, verificationCode, turnstileToken = '') {
     const data = await api.register(emailAddr, password, verificationCode, turnstileToken);
     saveSession(data);
@@ -56,5 +61,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data;
   }
 
-  return { token, userId, email, balance, isLoggedIn, register, login, logout, setBalance, refreshBalance };
+  return { token, userId, email, balance, isLoggedIn, register, login, loginWithSession, logout, setBalance, refreshBalance };
 });

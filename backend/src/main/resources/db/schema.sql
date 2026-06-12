@@ -64,9 +64,11 @@ create table if not exists recharge_orders (
 create table if not exists redeem_codes (
   id bigserial primary key,
   code text unique not null,
+  batch text not null default 'default',
   amount numeric(18, 6) not null,
   expires_at timestamp with time zone not null,
   holder_user_id uuid references users(id),
+  redeemed_ip text,
   redeemed_at timestamp with time zone,
   expired_deducted_at timestamp with time zone,
   created_at timestamp with time zone not null default now(),
@@ -137,6 +139,8 @@ create table if not exists openai_services (
   id bigserial primary key,
   api_endpoint text not null,
   token text not null,
+  force_replace_codex_model boolean not null default false,
+  codex_replacement_model text not null default '',
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
@@ -236,6 +240,12 @@ create index if not exists idx_redeem_codes_holder_user_id
   on redeem_codes(holder_user_id);
 create index if not exists idx_redeem_codes_expires_at
   on redeem_codes(expires_at);
+create index if not exists idx_redeem_codes_batch
+  on redeem_codes(batch);
+create unique index if not exists idx_redeem_codes_batch_holder_user_id
+  on redeem_codes(batch, holder_user_id);
+create unique index if not exists idx_redeem_codes_batch_redeemed_ip
+  on redeem_codes(batch, redeemed_ip);
 create index if not exists idx_announcements_active_published_at
   on announcements(active, published_at desc);
 create index if not exists idx_announcement_user_state_last_seen_at

@@ -24,7 +24,7 @@ public class RedeemCodeRepository {
         .query(
             """
             select id, code, amount, expires_at, holder_user_id, redeemed_at,
-                   expired_deducted_at, created_at, updated_at
+                   batch, redeemed_ip, expired_deducted_at, created_at, updated_at
             from redeem_codes
             where code = ?
             for update
@@ -40,7 +40,7 @@ public class RedeemCodeRepository {
         .query(
             """
             select id, code, amount, expires_at, holder_user_id, redeemed_at,
-                   expired_deducted_at, created_at, updated_at
+                   batch, redeemed_ip, expired_deducted_at, created_at, updated_at
             from redeem_codes
             where id = ?
             for update
@@ -51,17 +51,49 @@ public class RedeemCodeRepository {
         .findFirst();
   }
 
-  public RedeemCodeRecord markRedeemed(Long id, UUID userId, Instant redeemedAt) {
+  public boolean hasUserRedeemedBatch(UUID userId, String batch) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from redeem_codes
+            where holder_user_id = ? and batch = ?
+            """,
+            Integer.class,
+            userId,
+            batch);
+    return count != null && count > 0;
+  }
+
+  public boolean hasIpRedeemedBatch(String redeemedIp, String batch) {
+    if (redeemedIp == null || redeemedIp.isBlank()) {
+      return false;
+    }
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from redeem_codes
+            where redeemed_ip = ? and batch = ?
+            """,
+            Integer.class,
+            redeemedIp,
+            batch);
+    return count != null && count > 0;
+  }
+
+  public RedeemCodeRecord markRedeemed(Long id, UUID userId, String redeemedIp, Instant redeemedAt) {
     return jdbcTemplate.queryForObject(
         """
         update redeem_codes
-        set holder_user_id = ?, redeemed_at = ?, updated_at = ?
+        set holder_user_id = ?, redeemed_ip = ?, redeemed_at = ?, updated_at = ?
         where id = ? and holder_user_id is null
         returning id, code, amount, expires_at, holder_user_id, redeemed_at,
-                  expired_deducted_at, created_at, updated_at
+                  batch, redeemed_ip, expired_deducted_at, created_at, updated_at
         """,
         this::mapRow,
         userId,
+        redeemedIp,
         Timestamp.from(redeemedAt),
         Timestamp.from(redeemedAt),
         id);
@@ -83,7 +115,7 @@ public class RedeemCodeRepository {
     return jdbcTemplate.query(
         """
         select id, code, amount, expires_at, holder_user_id, redeemed_at,
-               expired_deducted_at, created_at, updated_at
+               batch, redeemed_ip, expired_deducted_at, created_at, updated_at
         from redeem_codes
         where holder_user_id is not null and expired_deducted_at is null
         order by expires_at
@@ -95,9 +127,11 @@ public class RedeemCodeRepository {
     return new RedeemCodeRecord(
         rs.getLong("id"),
         rs.getString("code"),
+        rs.getString("batch"),
         rs.getBigDecimal("amount"),
         rs.getTimestamp("expires_at").toInstant(),
         rs.getObject("holder_user_id", UUID.class),
+        rs.getString("redeemed_ip"),
         toInstant(rs.getTimestamp("redeemed_at")),
         toInstant(rs.getTimestamp("expired_deducted_at")),
         rs.getTimestamp("created_at").toInstant(),

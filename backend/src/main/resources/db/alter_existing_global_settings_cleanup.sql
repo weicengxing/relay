@@ -86,9 +86,11 @@ alter table users
 create table if not exists redeem_codes (
   id bigserial primary key,
   code text unique not null,
+  batch text not null default 'default',
   amount numeric(18, 6) not null,
   expires_at timestamp with time zone not null,
   holder_user_id uuid references users(id),
+  redeemed_ip text,
   redeemed_at timestamp with time zone,
   expired_deducted_at timestamp with time zone,
   created_at timestamp with time zone not null default now(),
@@ -98,11 +100,26 @@ create table if not exists redeem_codes (
 alter table redeem_codes
   add column if not exists expired_deducted_at timestamp with time zone;
 
+alter table redeem_codes
+  add column if not exists batch text not null default 'default';
+
+alter table redeem_codes
+  add column if not exists redeemed_ip text;
+
 create index if not exists idx_redeem_codes_holder_user_id
   on redeem_codes(holder_user_id);
 
 create index if not exists idx_redeem_codes_expires_at
   on redeem_codes(expires_at);
+
+create index if not exists idx_redeem_codes_batch
+  on redeem_codes(batch);
+
+create unique index if not exists idx_redeem_codes_batch_holder_user_id
+  on redeem_codes(batch, holder_user_id);
+
+create unique index if not exists idx_redeem_codes_batch_redeemed_ip
+  on redeem_codes(batch, redeemed_ip);
 
 create table if not exists announcements (
   id bigserial primary key,

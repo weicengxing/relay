@@ -74,6 +74,7 @@ def admin_invalidate_proxy_cache(table: str | None = None) -> None:
         "claude_services",
         "model_catalog",
         "openai_codex_profiles",
+        "openai_mode3_services",
         "openai_services",
         "redeem_codes",
         "users",
@@ -274,7 +275,9 @@ def admin_sqlite_create_row(
         columns = admin_columns(con, table)
         values = admin_clean_values(columns, payload.values or {})
         try:
-            if values:
+            if integer_primary_key_column(con, table):
+                cur = insert_with_next_integer_id(con, table, values)
+            elif values:
                 names = list(values.keys())
                 sql = f"insert into {qname} ({', '.join(quote_ident(name) for name in names)}) values ({', '.join('?' for _ in names)})"
                 cur = con.execute(sql, [values[name] for name in names])

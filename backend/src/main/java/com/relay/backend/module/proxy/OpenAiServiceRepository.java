@@ -19,7 +19,7 @@ public class OpenAiServiceRepository {
         """
         insert into openai_services (api_endpoint, token)
         values (?, ?)
-        returning id, api_endpoint, token, created_at, updated_at
+        returning id, api_endpoint, token, force_replace_codex_model, codex_replacement_model, created_at, updated_at
         """,
         this::mapServiceRow,
         apiEndpoint,
@@ -33,6 +33,8 @@ public class OpenAiServiceRepository {
           s.id,
           s.api_endpoint,
           s.token,
+          s.force_replace_codex_model,
+          s.codex_replacement_model,
           s.created_at,
           s.updated_at,
           p.id as profile_id,
@@ -89,6 +91,8 @@ public class OpenAiServiceRepository {
         rs.getLong("id"),
         rs.getString("api_endpoint"),
         rs.getString("token"),
+        rs.getBoolean("force_replace_codex_model"),
+        rs.getString("codex_replacement_model"),
         profileId == null ? null : mapCodexProfile(rs, profileId),
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());
@@ -99,6 +103,8 @@ public class OpenAiServiceRepository {
         rs.getLong("id"),
         rs.getString("api_endpoint"),
         rs.getString("token"),
+        rs.getBoolean("force_replace_codex_model"),
+        rs.getString("codex_replacement_model"),
         null,
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());

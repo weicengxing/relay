@@ -129,9 +129,14 @@ def announcement_response(row: sqlite3.Row) -> dict[str, Any]:
 
 @app.post("/api/redeem-codes/redeem")
 @db_write_api
-def redeem_code(payload: RedeemCodeRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def redeem_code(
+    payload: RedeemCodeRequest,
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     user_id = current_user_id(authorization)
     code = payload.code.strip()
+    redeem_ip = client_ip(request) or None
     with db() as con:
         deduct_expired_redeem_codes(con, user_id)
         row = con.execute("select * from redeem_codes where code = ?", (code,)).fetchone()
@@ -141,10 +146,42 @@ def redeem_code(payload: RedeemCodeRequest, authorization: str | None = Header(d
             raise AppError(409, "CONFLICT", "Redeem code has already been used")
         if row["expires_at"] <= now_iso():
             raise AppError(400, "VALIDATION_FAILED", "Redeem code has expired")
+        batch = row["batch"] or "default"
+        user_batch_row = con.execute(
+            """
+            select id from redeem_codes
+            where batch = ? and holder_user_id = ?
+            limit 1
+            """,
+            (batch, user_id),
+        ).fetchone()
+        if user_batch_row:
+            raise AppError(409, "CONFLICT", "领取失败")
+        if redeem_ip:
+            ip_batch_row = con.execute(
+                """
+                select id from redeem_codes
+                where batch = ? and redeemed_ip = ?
+                limit 1
+                """,
+                (batch, redeem_ip),
+            ).fetchone()
+            if ip_batch_row:
+                raise AppError(409, "CONFLICT", "领取失败")
         amount = parse_decimal(row["amount"])
+        ts = now_iso()
         balance_value = add_balance(con, user_id, amount)
-        con.execute(
-            "update redeem_codes set holder_user_id = ?, redeemed_at = ?, updated_at = ? where id = ?",
-            (user_id, now_iso(), now_iso(), row["id"]),
-        )
+        try:
+            cur = con.execute(
+                """
+                update redeem_codes
+                set holder_user_id = ?, redeemed_ip = ?, redeemed_at = ?, updated_at = ?
+                where id = ? and holder_user_id is null
+                """,
+                (user_id, redeem_ip, ts, ts, row["id"]),
+            )
+        except sqlite3.IntegrityError:
+            raise AppError(409, "CONFLICT", "领取失败")
+        if cur.rowcount != 1:
+            raise AppError(409, "CONFLICT", "Redeem code has already been used")
     return api_ok({"amount": float(amount), "balance": float(balance_value), "expiresAt": row["expires_at"]})

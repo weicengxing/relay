@@ -243,7 +243,7 @@ def issue_jwt(user: sqlite3.Row) -> str:
     header = b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
     payload = b64url(
         json.dumps(
-            {"sub": user["id"], "email": user["email"], "iat": now, "exp": now + 86400},
+            {"sub": user["id"], "email": user["email"], "iat": now},
             separators=(",", ":"),
         ).encode()
     )
@@ -264,8 +264,6 @@ def verify_jwt(token: str | None) -> str:
         raise AppError(401, "UNAUTHORIZED", "Unauthorized")
     try:
         payload = json.loads(b64url_decode(parts[1]))
-        if int(payload.get("exp", 0)) <= int(time.time()):
-            raise ValueError("expired")
         return str(uuid.UUID(payload["sub"]))
     except Exception as exc:
         raise AppError(401, "UNAUTHORIZED", "Unauthorized") from exc
@@ -393,4 +391,3 @@ def model_to_response(row: sqlite3.Row) -> dict[str, Any]:
         "cacheCreationPrice": float(row["cache_creation_price"]),
         "tags": [tag.strip() for tag in (row["tags"] or "").split(",") if tag.strip()],
     }
-

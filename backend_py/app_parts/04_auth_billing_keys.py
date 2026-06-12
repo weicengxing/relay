@@ -1,6 +1,8 @@
 @app.post("/api/auth/register-code")
 @db_write_api
 def send_register_code(payload: RegisterCodeRequest) -> dict[str, Any]:
+    if not EMAIL_REGISTER_ENABLED:
+        raise AppError(403, "EMAIL_REGISTER_DISABLED", "Email registration is disabled; please use OAuth login")
     email = payload.email.strip().lower()
     if not email or "@" not in email:
         raise AppError(400, "VALIDATION_FAILED", "Invalid email")
@@ -26,6 +28,8 @@ def send_register_code(payload: RegisterCodeRequest) -> dict[str, Any]:
 @app.post("/api/auth/register")
 @db_write_api
 def register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
+    if not EMAIL_REGISTER_ENABLED:
+        raise AppError(403, "EMAIL_REGISTER_DISABLED", "Email registration is disabled; please use OAuth login")
     verify_turnstile(payload.turnstileToken, request)
     email = payload.email.strip().lower()
     if not email or "@" not in email:
@@ -75,8 +79,192 @@ def login(payload: LoginRequest) -> dict[str, Any]:
     return api_ok(auth_response(user))
 
 
+@app.get("/api/auth/dc/start")
+@db_write_api
+def dc_auth_start(request: Request, redirect: str = "/") -> RedirectResponse:
+    if not DC_AUTH_ENABLED:
+        raise AppError(404, "NOT_FOUND", "dc.hhhl.cc login is disabled")
+    if not DC_AUTH_APP_SECRET:
+        raise AppError(500, "INTERNAL_ERROR", "DC_AUTH_APP_SECRET is not configured")
+
+    redirect_url = safe_frontend_redirect_url(redirect, request)
+    session = dc_auth_api("auth/session/generate", {"appSecret": DC_AUTH_APP_SECRET})
+    session_token = str(session.get("token") or "").strip()
+    session_url = str(session.get("url") or "").strip()
+    if not session_token or not session_url:
+        raise AppError(502, "UPSTREAM_ERROR", "dc.hhhl.cc did not return an auth session")
+
+    state = b64url(secrets.token_bytes(24))
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=max(60, DC_AUTH_STATE_TTL_SECONDS))).isoformat()
+    with db() as con:
+        cleanup_expired_dc_auth_states(con)
+        con.execute(
+            """
+            insert into dc_oauth_states(state, session_token, redirect_url, created_at, expires_at)
+            values (?, ?, ?, ?, ?)
+            """,
+            (state, session_token, redirect_url, now_iso(), expires_at),
+        )
+    return RedirectResponse(session_url, status_code=302)
+
+
+@app.get("/api/auth/dc/callback")
+@db_write_api
+def dc_auth_callback(request: Request, token: str = "", session: str = "") -> RedirectResponse:
+    session_token = (token or session or "").strip()
+    if not session_token:
+        raise AppError(400, "VALIDATION_FAILED", "Missing dc.hhhl.cc auth token")
+    if not DC_AUTH_APP_SECRET:
+        raise AppError(500, "INTERNAL_ERROR", "DC_AUTH_APP_SECRET is not configured")
+
+    with db() as con:
+        cleanup_expired_dc_auth_states(con)
+        state_row = con.execute(
+            "select * from dc_oauth_states where session_token = ?",
+            (session_token,),
+        ).fetchone()
+        if not state_row:
+            raise AppError(400, "INVALID_AUTH_STATE", "Login session expired, please try again")
+        con.execute("delete from dc_oauth_states where session_token = ?", (session_token,))
+
+    data = dc_auth_api("auth/session/userkey", {"appSecret": DC_AUTH_APP_SECRET, "token": session_token})
+    user_payload = data.get("user") if isinstance(data.get("user"), dict) else {}
+    user = login_or_create_dc_user(user_payload)
+    auth = auth_response(user)
+    redirect_url = append_dc_auth_fragment(state_row["redirect_url"], auth)
+    return RedirectResponse(redirect_url, status_code=302)
+
+
 def auth_response(user: sqlite3.Row) -> dict[str, Any]:
     return {"userId": user["id"], "email": user["email"], "balance": float(user["balance"]), "token": issue_jwt(user)}
+
+
+def cleanup_expired_dc_auth_states(con: sqlite3.Connection) -> None:
+    con.execute("delete from dc_oauth_states where expires_at <= ?", (datetime.now(timezone.utc).isoformat(),))
+
+
+def dc_auth_api(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        with httpx.Client(timeout=20) as client:
+            response = client.post(
+                f"{DC_AUTH_ORIGIN}/api/{endpoint}",
+                json=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "relay-dc-auth/1.0"},
+            )
+    except Exception as exc:
+        raise AppError(502, "UPSTREAM_ERROR", f"Unable to reach dc.hhhl.cc: {exc}") from exc
+    try:
+        data = response.json()
+    except Exception as exc:
+        raise AppError(502, "UPSTREAM_ERROR", "dc.hhhl.cc returned a non-JSON response") from exc
+    if response.status_code < 200 or response.status_code >= 300:
+        raise AppError(502, "UPSTREAM_ERROR", f"dc.hhhl.cc auth failed: {truncate(json.dumps(data), 500)}")
+    if not isinstance(data, dict):
+        raise AppError(502, "UPSTREAM_ERROR", "dc.hhhl.cc returned an invalid response")
+    return data
+
+
+def safe_frontend_redirect_url(value: str, request: Request) -> str:
+    frontend_base = dc_frontend_base_url(request)
+    raw = str(value or "/").strip() or "/"
+    parsed = urlparse(raw)
+    if parsed.scheme or parsed.netloc:
+        base = urlparse(frontend_base)
+        if parsed.scheme != base.scheme or parsed.netloc != base.netloc:
+            raw = "/"
+    elif not raw.startswith("/"):
+        raw = "/" + raw
+    if raw.startswith("//"):
+        raw = "/"
+    return urljoin(frontend_base + "/", raw.lstrip("/"))
+
+
+def dc_frontend_base_url(request: Request) -> str:
+    if DC_AUTH_FRONTEND_BASE_URL:
+        return DC_AUTH_FRONTEND_BASE_URL
+    origin = request.headers.get("origin")
+    if origin:
+        parsed = urlparse(origin)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    referer = request.headers.get("referer")
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return "http://127.0.0.1:5173"
+
+
+def append_dc_auth_fragment(redirect_url: str, auth: dict[str, Any]) -> str:
+    fragment = urlencode(
+        {
+            "dc_status": "ok",
+            "token": auth["token"],
+            "userId": auth["userId"],
+            "email": auth["email"],
+            "balance": str(auth["balance"]),
+        }
+    )
+    return f"{redirect_url.split('#', 1)[0]}#{fragment}"
+
+
+def login_or_create_dc_user(dc_user: dict[str, Any]) -> sqlite3.Row:
+    provider_user_id = str(dc_user.get("id") or dc_user.get("username") or "").strip()
+    if not provider_user_id:
+        raise AppError(502, "UPSTREAM_ERROR", "dc.hhhl.cc user response is missing an id")
+    username = str(dc_user.get("username") or dc_user.get("name") or provider_user_id).strip()
+    display_name = str(dc_user.get("name") or username or provider_user_id).strip()
+    avatar_url = str(dc_user.get("avatarUrl") or dc_user.get("avatar_url") or "").strip()
+    synthetic_email = dc_synthetic_email(provider_user_id, username)
+    ts = now_iso()
+
+    with db() as con:
+        existing = con.execute(
+            """
+            select u.*
+            from user_oauth_bindings b
+            join users u on u.id = b.user_id
+            where b.provider = 'dc.hhhl.cc' and b.provider_user_id = ?
+            """,
+            (provider_user_id,),
+        ).fetchone()
+        if existing:
+            con.execute(
+                """
+                update user_oauth_bindings
+                set provider_username = ?, provider_name = ?, provider_avatar_url = ?, updated_at = ?
+                where provider = 'dc.hhhl.cc' and provider_user_id = ?
+                """,
+                (username, display_name, avatar_url, ts, provider_user_id),
+            )
+            return con.execute("select * from users where id = ?", (existing["id"],)).fetchone()
+
+        user_id = str(uuid.uuid4())
+        con.execute(
+            """
+            insert into users(id, email, password_hash, registration_ip, balance, status, created_at)
+            values (?, ?, ?, null, ?, 'active', ?)
+            """,
+            (user_id, synthetic_email, "dc-oauth:" + b64url(secrets.token_bytes(24)), decimal_text(DEFAULT_BALANCE), ts),
+        )
+        con.execute(
+            """
+            insert into user_oauth_bindings(
+              provider, provider_user_id, user_id, provider_username,
+              provider_name, provider_avatar_url, created_at, updated_at
+            )
+            values ('dc.hhhl.cc', ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (provider_user_id, user_id, username, display_name, avatar_url, ts, ts),
+        )
+        return con.execute("select * from users where id = ?", (user_id,)).fetchone()
+
+
+def dc_synthetic_email(provider_user_id: str, username: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9._+-]+", "-", (username or provider_user_id).strip().lower()).strip(".-")
+    cleaned = cleaned[:40] or "user"
+    digest = hashlib.sha256(provider_user_id.encode("utf-8")).hexdigest()[:12]
+    return f"dc-{cleaned}-{digest}@dc.hhhl.cc"
 
 
 @app.get("/api/balance")
@@ -161,11 +349,19 @@ def create_api_key(payload: CreateApiKeyRequest, authorization: str | None = Hea
         ).fetchone()
         if exists:
             raise AppError(409, "CONFLICT", "API key name already exists")
-        con.execute(
-            "insert into api_keys(user_id, key_hash, key_value, name, status, created_at) values (?, ?, ?, ?, 'active', ?)",
-            (user_id, sha256_key(key), key, name, now_iso()),
+        cur = insert_with_next_integer_id(
+            con,
+            "api_keys",
+            {
+                "user_id": user_id,
+                "key_hash": sha256_key(key),
+                "key_value": key,
+                "name": name,
+                "status": "active",
+                "created_at": now_iso(),
+            },
         )
-        row = con.execute("select * from api_keys where id = last_insert_rowid()").fetchone()
+        row = con.execute("select * from api_keys where id = ?", (cur.lastrowid,)).fetchone()
     if "invalidate_proxy_context_cache" in globals():
         invalidate_proxy_context_cache()
     return api_ok(api_key_response(row))

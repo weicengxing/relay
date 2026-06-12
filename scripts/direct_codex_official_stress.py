@@ -41,12 +41,12 @@ def load_profile(db_path: Path, service_id: int) -> dict[str, Any]:
                    p.openai_api_key, p.account_id, p.base_url, p.model, p.reasoning_effort
             from openai_services s
             join openai_codex_profiles p on p.openai_service_id = s.id
-            where s.id = ?
+            where s.id = ? and s.enabled = 1
             """,
             (service_id,),
         ).fetchone()
         if not row:
-            raise RuntimeError(f"Codex profile service id {service_id} was not found")
+            raise RuntimeError(f"Codex profile service id {service_id} was not found or is disabled")
         profile = dict(row)
         token = (profile.get("access_token") or profile.get("openai_api_key") or "").strip()
         if not token:

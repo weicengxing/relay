@@ -1,9 +1,11 @@
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import * as api from '../api';
 import { useAuthStore } from '../stores/auth';
 
 const auth = useAuthStore();
+const route = useRoute();
 const router = useRouter();
 const email = ref('');
 const password = ref('');
@@ -22,6 +24,41 @@ async function handleSubmit() {
     loading.value = false;
   }
 }
+
+function handleDcLogin() {
+  const redirect = safeRedirectPath(route.query.redirect);
+  const callbackPath = `/login?redirect=${encodeURIComponent(redirect)}`;
+  window.location.href = api.dcLoginUrl(callbackPath);
+}
+
+function consumeDcLoginCallback() {
+  const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  if (params.get('dc_status') !== 'ok') return;
+  const session = {
+    token: params.get('token') || '',
+    userId: params.get('userId') || '',
+    email: params.get('email') || '',
+    balance: params.get('balance') || '0',
+  };
+  if (!session.token || !session.userId) {
+    error.value = '社区登录回调无效，请重试';
+    return;
+  }
+  auth.loginWithSession(session);
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const redirect = safeRedirectPath(route.query.redirect);
+  router.push(redirect);
+}
+
+function safeRedirectPath(value) {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/';
+}
+
+onMounted(() => {
+  consumeDcLoginCallback();
+});
 </script>
 
 <template>
@@ -57,9 +94,12 @@ async function handleSubmit() {
           <span v-if="loading" class="spin"></span>
           {{ loading ? '登录中...' : '登录' }}
         </button>
+        <button type="button" class="dc-login" :disabled="loading" @click="handleDcLogin">
+          dc.hhhl.cc 登录
+        </button>
       </form>
 
-      <p class="alt">还没有账号？<router-link to="/register">创建账号</router-link></p>
+      <p class="alt">请使用 dc.hhhl.cc 社区账号登录</p>
     </div>
   </div>
 </template>
@@ -182,6 +222,31 @@ h1 {
 }
 
 .submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dc-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.dc-login:hover:not(:disabled) {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.dc-login:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

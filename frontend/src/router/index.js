@@ -10,9 +10,7 @@ const routes = [
   },
   {
     path: '/register',
-    name: 'Register',
-    component: () => import('../views/Register.vue'),
-    meta: { guest: true },
+    redirect: '/login',
   },
   {
     path: '/',

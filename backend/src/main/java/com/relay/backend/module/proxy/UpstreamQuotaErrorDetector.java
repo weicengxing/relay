@@ -6,7 +6,7 @@ import java.util.Set;
 
 final class UpstreamQuotaErrorDetector {
 
-  private static final Set<Integer> RETRYABLE_STATUS_CODES = Set.of(402, 403, 429);
+  private static final Set<Integer> RETRYABLE_STATUS_CODES = Set.of(401, 402, 403, 429);
   private static final Set<String> QUOTA_ERROR_MARKERS =
       Set.of(
           "insufficient_quota",

@@ -735,10 +735,6 @@ onBeforeUnmount(() => {
         </svg>
       </button>
 
-      <div class="model-chip" aria-label="当前模型">
-        <span>{{ modelLabel }}</span>
-      </div>
-
       <div ref="accountMenuRef" class="account-menu-wrap">
         <button
           type="button"
@@ -774,6 +770,10 @@ onBeforeUnmount(() => {
             <span v-if="config.default" class="account-badge">默认</span>
           </button>
         </div>
+      </div>
+
+      <div class="model-chip" aria-label="当前模型">
+        <span>{{ modelLabel }}</span>
       </div>
     </header>
 
@@ -944,9 +944,10 @@ onBeforeUnmount(() => {
 }
 
 .chat-topbar {
+  position: relative;
   min-height: 58px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 9px 16px;
@@ -985,6 +986,10 @@ onBeforeUnmount(() => {
 }
 
 .model-chip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   justify-self: center;
   max-width: min(430px, 100%);
   height: 38px;
@@ -1006,23 +1011,38 @@ onBeforeUnmount(() => {
 
 .account-menu-wrap {
   position: relative;
-  justify-self: end;
+  justify-self: start;
 }
 
 .config-pill {
-  max-width: 210px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--chat-line);
+  max-width: 240px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #ffd700;
   border-radius: 999px;
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  color: var(--chat-muted);
-  background: #fff;
+  gap: 8px;
+  color: #111827;
+  background: linear-gradient(180deg, #fffdf1 0%, #fff4a3 52%, #ffffff 100%);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.24), 0 8px 22px rgba(255, 215, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.config-pill::before {
+  content: "";
+  position: absolute;
+  inset: -40% auto -40% -65%;
+  width: 46%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.92), transparent);
+  animation: gold-sweep 2.7s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .account-trigger {
@@ -1032,8 +1052,9 @@ onBeforeUnmount(() => {
 
 .account-trigger:hover:not(:disabled),
 .account-trigger[aria-expanded="true"] {
-  border-color: rgba(16, 163, 127, 0.36);
-  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.08);
+  background: linear-gradient(180deg, #fffbe0 0%, #ffe76a 52%, #fffdf5 100%);
+  border-color: #ffd700;
+  box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.18), 0 10px 26px rgba(255, 215, 0, 0.36);
 }
 
 .account-trigger:disabled {
@@ -1052,7 +1073,7 @@ onBeforeUnmount(() => {
 
 .account-menu {
   position: absolute;
-  right: 0;
+  left: 0;
   top: calc(100% + 8px);
   width: 280px;
   max-height: min(360px, calc(100vh - 140px));
@@ -1116,20 +1137,20 @@ onBeforeUnmount(() => {
 
 .account-badge {
   flex: 0 0 auto;
-  border: 1px solid rgba(16, 163, 127, 0.24);
+  border: 1px solid #ffd700;
   border-radius: 999px;
   padding: 2px 7px;
-  color: #08785f;
-  background: rgba(16, 163, 127, 0.08);
+  color: #111827;
+  background: rgba(255, 215, 0, 0.2);
   font-size: 11px;
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: var(--chat-accent);
-  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.12);
+  background: #ffd700;
+  box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.22), 0 0 10px rgba(255, 215, 0, 0.85);
   flex-shrink: 0;
 }
 
@@ -1755,6 +1776,18 @@ onBeforeUnmount(() => {
   to { transform: translateX(100%); }
 }
 
+@keyframes gold-sweep {
+  0%,
+  42% {
+    left: -65%;
+  }
+
+  72%,
+  100% {
+    left: 120%;
+  }
+}
+
 @keyframes pulse {
   0%,
   80%,
@@ -1775,11 +1808,11 @@ onBeforeUnmount(() => {
   }
 
   .chat-topbar {
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: 40px auto minmax(0, 1fr);
   }
 
   .config-pill {
-    max-width: 160px;
+    max-width: 180px;
   }
 }
 
@@ -1796,7 +1829,6 @@ onBeforeUnmount(() => {
   }
 
   .model-chip {
-    justify-self: start;
     font-size: 14px;
   }
 

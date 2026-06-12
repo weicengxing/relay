@@ -25,7 +25,6 @@ public class AuthTokenService {
   private static final Base64.Encoder BASE64_URL = Base64.getUrlEncoder().withoutPadding();
   private static final Base64.Decoder BASE64_URL_DECODER = Base64.getUrlDecoder();
   private static final Pattern SUB_PATTERN = Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
-  private static final Pattern EXP_PATTERN = Pattern.compile("\"exp\"\\s*:\\s*(\\d+)");
 
   private final AppProperties appProperties;
   private final Clock clock;
@@ -45,9 +44,9 @@ public class AuthTokenService {
     String header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
     String payload =
         """
-        {"sub":"%s","email":"%s","iat":%d,"exp":%d}
+        {"sub":"%s","email":"%s","iat":%d}
         """
-            .formatted(user.id(), user.email(), now.getEpochSecond(), now.plusSeconds(86400).getEpochSecond())
+            .formatted(user.id(), user.email(), now.getEpochSecond())
             .trim();
 
     String unsigned = encode(header) + "." + encode(payload);
@@ -66,11 +65,6 @@ public class AuthTokenService {
     }
 
     String payload = new String(BASE64_URL_DECODER.decode(parts[1]), StandardCharsets.UTF_8);
-    Matcher expMatcher = EXP_PATTERN.matcher(payload);
-    if (!expMatcher.find() || Long.parseLong(expMatcher.group(1)) <= clock.instant().getEpochSecond()) {
-      throw unauthorized();
-    }
-
     Matcher subMatcher = SUB_PATTERN.matcher(payload);
     if (!subMatcher.find()) {
       throw unauthorized();

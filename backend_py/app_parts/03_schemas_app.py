@@ -80,6 +80,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 @app.exception_handler(AppError)
@@ -129,6 +130,10 @@ def bootstrap() -> dict[str, Any]:
             "turnstile": {
                 "enabled": turnstile_enabled(),
                 "siteKey": TURNSTILE_SITE_KEY,
+            },
+            "auth": {
+                "emailRegisterEnabled": EMAIL_REGISTER_ENABLED,
+                "dcOAuthEnabled": DC_AUTH_ENABLED,
             },
             "rechargePayment": recharge_payment_settings(),
         }

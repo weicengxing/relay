@@ -86,28 +86,23 @@ def create_novel(payload: CreateNovelRequest, authorization: str | None = Header
     ts = now_iso()
     storage = store_novel_to_github(user_id, title, content)
     with db() as con:
-        con.execute(
-            """
-            insert into novels(
-              user_id, title, author, excerpt, content_object_key, content_url,
-              content_size, content_sha256, created_at, updated_at
-            )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user_id,
-                title,
-                (payload.author or "").strip(),
-                excerpt,
-                storage["objectKey"],
-                storage["url"],
-                storage["size"],
-                storage["sha256"],
-                ts,
-                ts,
-            ),
+        cur = insert_with_next_integer_id(
+            con,
+            "novels",
+            {
+                "user_id": user_id,
+                "title": title,
+                "author": (payload.author or "").strip(),
+                "excerpt": excerpt,
+                "content_object_key": storage["objectKey"],
+                "content_url": storage["url"],
+                "content_size": storage["size"],
+                "content_sha256": storage["sha256"],
+                "created_at": ts,
+                "updated_at": ts,
+            },
         )
-        row = con.execute("select * from novels where id = last_insert_rowid()").fetchone()
+        row = con.execute("select * from novels where id = ?", (cur.lastrowid,)).fetchone()
     return api_ok(novel_full(row, None))
 
 
@@ -239,5 +234,4 @@ def novel_full(row: sqlite3.Row, my_rating: int | None) -> dict[str, Any]:
         }
     )
     return data
-
 

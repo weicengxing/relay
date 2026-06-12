@@ -29,7 +29,7 @@ class UpstreamQuotaErrorDetectorTests {
   @Test
   void ignoresAuthenticationAndGenericErrors() {
     assertThat(UpstreamQuotaErrorDetector.isRetryableQuotaError(401, "insufficient_quota".getBytes()))
-        .isFalse();
+        .isTrue();
     assertThat(UpstreamQuotaErrorDetector.isRetryableQuotaError(429, "temporary upstream overload".getBytes()))
         .isFalse();
   }
@@ -37,6 +37,7 @@ class UpstreamQuotaErrorDetectorTests {
   @Test
   void inspectsRetryableQuotaStatusesForAnyCodexRequestMode() {
     assertThat(ProxyController.shouldInspectQuotaRetry(ClientType.CODEX, 429)).isTrue();
+    assertThat(ProxyController.shouldInspectQuotaRetry(ClientType.CODEX, 401)).isTrue();
     assertThat(ProxyController.shouldInspectQuotaRetry(ClientType.CODEX, 402)).isTrue();
     assertThat(ProxyController.shouldInspectQuotaRetry(ClientType.CLAUDE, 429)).isFalse();
     assertThat(ProxyController.shouldInspectQuotaRetry(ClientType.CODEX, 500)).isFalse();

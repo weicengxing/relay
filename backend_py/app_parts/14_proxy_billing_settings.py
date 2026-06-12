@@ -16,6 +16,17 @@ async def proxy(path: str, request: Request) -> Response:
         return local_proxy_error(402, "余额不足", event_stream)
     if not context.upstreams:
         return local_proxy_error(404, "No upstream service configured", event_stream)
+    if client_type == "CODEX":
+        submit_codex_user_message_log(
+            context.api_key,
+            request.url.path,
+            {
+                "x-client-request-id": request.headers.get("x-client-request-id"),
+                "session_id": request.headers.get("session_id"),
+                "x-codex-turn-metadata": request.headers.get("x-codex-turn-metadata"),
+            },
+            body,
+        )
     return await proxy_with_body(path, request, body, event_stream, context.api_key, client_type, context.upstreams)
 
 
@@ -28,14 +39,37 @@ _codex_default_instructions_cache: tuple[float | None, str | None] = (None, None
 _codex_instructions_stop = threading.Event()
 _codex_instructions_thread_lock = threading.Lock()
 _codex_instructions_thread: threading.Thread | None = None
+_codex_profile_refresh_stop = threading.Event()
+_codex_profile_refresh_thread_lock = threading.Lock()
+_codex_profile_refresh_thread: threading.Thread | None = None
 PROXY_API_KEY_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_API_KEY_CACHE_TTL", "600"))
-PROXY_UPSTREAM_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_UPSTREAM_CACHE_TTL", "inf"))
+PROXY_UPSTREAM_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_UPSTREAM_CACHE_TTL", "30"))
 PROXY_BALANCE_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BALANCE_CACHE_TTL", "1"))
 PROXY_BILLING_CACHE_TTL = float(os.getenv("RELAY_PY_PROXY_BILLING_CACHE_TTL", "inf"))
 PROXY_EXPIRED_REDEEM_CHECK_TTL = float(os.getenv("RELAY_PY_PROXY_EXPIRED_REDEEM_CHECK_TTL", "30"))
 PROXY_LOG_BATCH_SIZE = int(os.getenv("RELAY_PY_PROXY_LOG_BATCH_SIZE", "100"))
 PROXY_LOG_FLUSH_INTERVAL = float(os.getenv("RELAY_PY_PROXY_LOG_FLUSH_INTERVAL", "0.05"))
+CODEX_USER_MESSAGE_MAX_CHARS = max(1, int(os.getenv("RELAY_PY_CODEX_USER_MESSAGE_MAX_CHARS", "20000")))
 CODEX_INSTRUCTIONS_REFRESH_INTERVAL = max(1.0, float(os.getenv("RELAY_PY_CODEX_INSTRUCTIONS_REFRESH_INTERVAL", "5")))
+CODEX_PROFILE_REFRESH_ENABLED_SETTING = "codex.refresh_enabled"
+CODEX_PROFILE_REFRESH_INTERVAL_DAYS = max(1, int(os.getenv("RELAY_PY_CODEX_REFRESH_INTERVAL_DAYS", "6")))
+CODEX_PROFILE_REFRESH_SCAN_INTERVAL_SECONDS = max(
+    60.0, float(os.getenv("RELAY_PY_CODEX_REFRESH_SCAN_INTERVAL_SECONDS", "300"))
+)
+CODEX_PROFILE_REFRESH_INITIAL_DELAY_SECONDS = max(
+    0.0, float(os.getenv("RELAY_PY_CODEX_REFRESH_INITIAL_DELAY_SECONDS", "60"))
+)
+CODEX_PROFILE_REFRESH_LOG_PATH = Path(
+    os.getenv(
+        "RELAY_PY_CODEX_REFRESH_LOG",
+        str(DB_PATH.parent / "logs" / "codex-token-refresh.log"),
+    )
+)
+RELAY_CODEX_SYNC_SECRET = os.getenv("RELAY_PY_CODEX_SYNC_SECRET", "")
+CODEX_USER_MESSAGE_WORKERS = max(1, int(os.getenv("RELAY_PY_CODEX_USER_MESSAGE_WORKERS", "2")))
+PROXY_LOG_CAPTURE_LIMIT = 256 * 1024
+PROXY_LOG_IMPORTANT_SSE_LIMIT = 256 * 1024
+PROXY_LOG_SSE_PENDING_LIMIT = 1024 * 1024
 
 _proxy_cache_lock = threading.Lock()
 _api_key_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -48,6 +82,14 @@ _upstream_limiters: dict[tuple[str, int, int], "UpstreamLimiter"] = {}
 _upstream_client_lock = threading.Lock()
 _shared_upstream_clients: dict[tuple[str, int], httpx.AsyncClient] = {}
 _shared_upstream_client_ids: set[int] = set()
+_mode2_rotation_lock = threading.Lock()
+_mode2_rotation_state: dict[str, dict[str, Any]] = {}
+_mode3_rotation_lock = threading.Lock()
+_mode3_rotation_state: dict[str, dict[str, Any]] = {}
+_codex_user_message_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=CODEX_USER_MESSAGE_WORKERS,
+    thread_name_prefix="relay-codex-user-log",
+)
 
 
 @dataclass
@@ -81,6 +123,342 @@ class UpstreamLimiter:
     active: int = 0
 
 
+class ProxyResponseCapture:
+    def __init__(self) -> None:
+        self.prefix = bytearray()
+        self.important_sse = bytearray()
+        self.pending_line = bytearray()
+
+    def feed(self, chunk: bytes) -> None:
+        if not chunk:
+            return
+        if len(self.prefix) < PROXY_LOG_CAPTURE_LIMIT:
+            self.prefix.extend(chunk[: PROXY_LOG_CAPTURE_LIMIT - len(self.prefix)])
+        if len(self.important_sse) < PROXY_LOG_IMPORTANT_SSE_LIMIT:
+            self._feed_sse_bytes(chunk)
+
+    def body(self) -> bytes:
+        if self.pending_line:
+            self._capture_important_sse_line(bytes(self.pending_line))
+            self.pending_line.clear()
+        if not self.important_sse:
+            return bytes(self.prefix)
+        return bytes(self.prefix) + b"\n" + bytes(self.important_sse)
+
+    def _feed_sse_bytes(self, data: bytes) -> None:
+        if not data:
+            return
+        if self.pending_line:
+            data = bytes(self.pending_line) + data
+            self.pending_line.clear()
+
+        start = 0
+        while start < len(data):
+            newline = data.find(b"\n", start)
+            if newline < 0:
+                tail = data[start:]
+                if len(tail) > PROXY_LOG_SSE_PENDING_LIMIT:
+                    tail = tail[-4096:]
+                self.pending_line.extend(tail)
+                return
+            self._capture_important_sse_line(data[start : newline + 1])
+            if len(self.important_sse) >= PROXY_LOG_IMPORTANT_SSE_LIMIT:
+                self.pending_line.clear()
+                return
+            start = newline + 1
+
+    def _capture_important_sse_line(self, line: bytes) -> None:
+        if len(self.important_sse) >= PROXY_LOG_IMPORTANT_SSE_LIMIT:
+            return
+        stripped = line.strip()
+        if not stripped.startswith(b"data:"):
+            return
+        payload = stripped[5:].strip()
+        if not payload or payload == b"[DONE]":
+            return
+        if not (
+            b'"usage"' in payload
+            or b'"type":"response.completed"' in payload
+            or b'"type": "response.completed"' in payload
+            or b'"type":"response.failed"' in payload
+            or b'"type": "response.failed"' in payload
+            or b'"error"' in payload
+        ):
+            return
+        encoded = b"data: " + payload + b"\n"
+        self.important_sse.extend(encoded[: PROXY_LOG_IMPORTANT_SSE_LIMIT - len(self.important_sse)])
+
+
+def is_important_sse_log_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped.startswith("data:"):
+        return False
+    payload = stripped[5:].strip()
+    if not payload or payload == "[DONE]":
+        return False
+    return (
+        '"usage"' in payload
+        or '"type":"response.completed"' in payload
+        or '"type": "response.completed"' in payload
+        or '"type":"response.failed"' in payload
+        or '"type": "response.failed"' in payload
+        or '"error"' in payload
+    )
+
+
+def compact_important_sse_log_line(line: str) -> str:
+    stripped = line.strip()
+    if not stripped.startswith("data:"):
+        return line
+    payload = stripped[5:].strip()
+    try:
+        root = json.loads(payload)
+    except Exception:
+        return line
+    if not isinstance(root, dict):
+        return line
+
+    compact: dict[str, Any] = {}
+    event_type = root.get("type")
+    if event_type is not None:
+        compact["type"] = event_type
+    response = root.get("response") if isinstance(root.get("response"), dict) else None
+    if response is not None:
+        compact_response = {
+            key: response.get(key)
+            for key in ["id", "status", "model", "usage"]
+            if response.get(key) is not None
+        }
+        if compact_response:
+            compact["response"] = compact_response
+    message = root.get("message") if isinstance(root.get("message"), dict) else None
+    if message is not None:
+        compact_message = {
+            key: message.get(key)
+            for key in ["id", "status", "model", "usage"]
+            if message.get(key) is not None
+        }
+        if compact_message:
+            compact["message"] = compact_message
+    for key in ["model", "usage", "error"]:
+        if root.get(key) is not None:
+            compact[key] = root.get(key)
+    if not compact:
+        return line
+    return "data: " + json.dumps(compact, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
+def codex_text_blocks(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            parts.extend(codex_text_blocks(item))
+        return parts
+    if not isinstance(value, dict):
+        return []
+    block_type = value.get("type")
+    if block_type in {"input_text", "text", "output_text"} and isinstance(value.get("text"), str):
+        return [value["text"]]
+    if isinstance(value.get("text"), str) and block_type is None:
+        return [value["text"]]
+    return codex_text_blocks(value.get("content"))
+
+
+def extract_latest_codex_user_message(body: bytes) -> dict[str, Any] | None:
+    try:
+        root = json.loads(body)
+    except Exception:
+        return None
+    if not isinstance(root, dict):
+        return None
+    raw_input = root.get("input")
+    input_index: int | None = None
+    text = ""
+    if isinstance(raw_input, str):
+        text = raw_input.strip()
+    elif isinstance(raw_input, list):
+        for idx in range(len(raw_input) - 1, -1, -1):
+            item = raw_input[idx]
+            if not isinstance(item, dict) or item.get("role") != "user":
+                continue
+            parts = [part.strip() for part in codex_text_blocks(item.get("content")) if part.strip()]
+            text = "\n\n".join(parts).strip()
+            input_index = idx
+            break
+    if not text:
+        return None
+    if len(text) > CODEX_USER_MESSAGE_MAX_CHARS:
+        text = text[:CODEX_USER_MESSAGE_MAX_CHARS]
+    return {
+        "message_text": text,
+        "message_hash": b64url(hashlib.sha256(text.encode("utf-8")).digest()),
+        "input_index": input_index,
+        "model": root.get("model") if isinstance(root.get("model"), str) else None,
+        "previous_response_id": root.get("previous_response_id")
+        if isinstance(root.get("previous_response_id"), str)
+        else None,
+    }
+
+
+def parse_codex_turn_metadata(raw: str | None) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def record_codex_user_message_sync(
+    api_key: dict[str, Any],
+    request_uri: str,
+    headers: dict[str, str | None],
+    body: bytes,
+) -> None:
+    extracted = extract_latest_codex_user_message(body)
+    if not extracted:
+        return
+    metadata = parse_codex_turn_metadata(headers.get("x-codex-turn-metadata"))
+    request_id = first_non_blank(headers.get("x-client-request-id"), metadata.get("request_id"))
+    session_id = first_non_blank(headers.get("session_id"), metadata.get("session_id"))
+    turn_id = first_non_blank(metadata.get("turn_id"))
+    dedupe_material = "|".join(
+        str(value or "")
+        for value in [
+            api_key.get("id"),
+            api_key.get("user_id"),
+            request_uri,
+            request_id,
+            session_id,
+            turn_id,
+            extracted.get("previous_response_id"),
+            extracted["message_hash"],
+        ]
+    )
+    dedupe_key = b64url(hashlib.sha256(dedupe_material.encode("utf-8")).digest())
+    try:
+        with db() as con:
+            insert_with_next_integer_id(
+                con,
+                "codex_user_messages",
+                {
+                    "user_id": api_key["user_id"],
+                    "api_key_id": api_key["id"],
+                    "request_uri": request_uri,
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "turn_id": turn_id,
+                    "previous_response_id": extracted.get("previous_response_id"),
+                    "model": extracted.get("model"),
+                    "message_text": extracted["message_text"],
+                    "message_hash": extracted["message_hash"],
+                    "dedupe_key": dedupe_key,
+                    "created_at": now_iso(),
+                },
+                """
+                on conflict(dedupe_key) do nothing
+                """,
+            )
+    except Exception:
+        codex_proxy_logger.exception("failed to record Codex user message")
+
+
+def submit_codex_user_message_log(
+    api_key: Any,
+    request_uri: str,
+    headers: dict[str, str | None],
+    body: bytes,
+) -> None:
+    try:
+        api_key_snapshot = {"id": api_key["id"], "user_id": api_key["user_id"]}
+    except Exception:
+        codex_proxy_logger.exception("failed to snapshot api key for Codex user message log")
+        return
+    try:
+        future = _codex_user_message_executor.submit(
+            record_codex_user_message_sync,
+            api_key_snapshot,
+            request_uri,
+            dict(headers),
+            body,
+        )
+        future.add_done_callback(log_codex_user_message_task_failure)
+    except RuntimeError:
+        codex_proxy_logger.exception("failed to submit Codex user message log task")
+
+
+def log_codex_user_message_task_failure(future: concurrent.futures.Future[Any]) -> None:
+    try:
+        future.result()
+    except Exception:
+        codex_proxy_logger.exception("Codex user message log task failed")
+
+
+def stop_codex_user_message_executor() -> None:
+    _codex_user_message_executor.shutdown(wait=True, cancel_futures=False)
+
+
+def mode3_batch_size_from_upstreams(upstreams: list[dict[str, Any]]) -> int:
+    for upstream in upstreams:
+        try:
+            return max(1, int(upstream.get("_mode3_batch_size") or 8))
+        except Exception:
+            return 8
+    return 8
+
+
+def mode3_reordered_upstreams(client_type: str, upstreams: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if client_type != "CODEX" or not upstreams or not upstreams[0].get("_mode3_rotation"):
+        return upstreams
+    signature = tuple(int(upstream.get("id") or 0) for upstream in upstreams)
+    if not signature:
+        return upstreams
+    batch_size = mode3_batch_size_from_upstreams(upstreams)
+    with _mode3_rotation_lock:
+        state = _mode3_rotation_state.get(client_type)
+        if state is None or state.get("signature") != signature or state.get("batch_size") != batch_size:
+            state = {"signature": signature, "batch_size": batch_size, "index": 0, "remaining": batch_size}
+            _mode3_rotation_state[client_type] = state
+        index = int(state.get("index") or 0) % len(upstreams)
+        remaining = max(1, int(state.get("remaining") or batch_size)) - 1
+        if remaining <= 0:
+            state["index"] = (index + 1) % len(upstreams)
+            state["remaining"] = batch_size
+        else:
+            state["index"] = index
+            state["remaining"] = remaining
+    return [dict(item) for item in (upstreams[index:] + upstreams[:index])]
+
+
+def mode2_start_index(client_type: str, upstreams: list[dict[str, Any]]) -> int:
+    if client_type != "CODEX" or not upstreams or not upstreams[0].get("_mode2_round_robin"):
+        return 0
+    signature = tuple(int(upstream.get("id") or 0) for upstream in upstreams)
+    if not signature:
+        return 0
+    with _mode2_rotation_lock:
+        state = _mode2_rotation_state.get(client_type)
+        if state is None or state.get("signature") != signature:
+            state = {"signature": signature, "index": 0}
+            _mode2_rotation_state[client_type] = state
+        index = int(state.get("index") or 0) % len(upstreams)
+        state["index"] = (index + 1) % len(upstreams)
+    return index
+
+
+def upstream_attempts(client_type: str, upstreams: list[dict[str, Any]]) -> Iterable[tuple[int, dict[str, Any], int]]:
+    upstreams = mode3_reordered_upstreams(client_type, upstreams)
+    total = len(upstreams)
+    if total <= 0:
+        return
+    start = mode2_start_index(client_type, upstreams)
+    for offset in range(total):
+        yield offset, upstreams[(start + offset) % total], total
+
+
 async def proxy_with_body(
     path: str,
     request: Request,
@@ -110,7 +488,7 @@ async def proxy_with_body(
     upstream_limiter: UpstreamLimiter | None = None
     prefetched_body: bytes | None = None
     last_error = "Unable to reach upstream service"
-    for index, candidate in enumerate(upstreams):
+    for index, candidate, upstream_count in upstream_attempts(client_type, upstreams):
         candidate_limiter: UpstreamLimiter | None = None
         try:
             upstream_body = await normalize_upstream_body_async(body, candidate, client_type, event_stream)
@@ -130,7 +508,7 @@ async def proxy_with_body(
             if should_inspect_quota_retry(client_type, candidate_stream.status_code):
                 candidate_body = await candidate_stream.aread()
                 await candidate_stream.aclose()
-                if is_retryable_quota_error(candidate_stream.status_code, candidate_body) and index < len(upstreams) - 1:
+                if is_retryable_quota_error(candidate_stream.status_code, candidate_body) and index < upstream_count - 1:
                     last_error = f"Upstream service {candidate.get('id')} quota limited"
                     release_upstream_slot(candidate_limiter)
                     candidate_limiter = None
@@ -154,7 +532,7 @@ async def proxy_with_body(
             except Exception:
                 pass
             release_upstream_slot(candidate_limiter)
-            if index < len(upstreams) - 1:
+            if index < upstream_count - 1:
                 continue
     if stream is None or upstream is None:
         await close_upstream_client(client)
@@ -169,7 +547,7 @@ async def proxy_with_body(
     media_type = stream.headers.get("content-type") or ("text/event-stream" if event_stream else "application/json")
 
     async def generate() -> AsyncIterable[bytes]:
-        captured = bytearray()
+        capture = ProxyResponseCapture()
         first_token_ms = 0
         response_bytes = 0
         saw_first = False
@@ -182,8 +560,8 @@ async def proxy_with_body(
                     saw_first = True
                     first_token_ms = int((time.monotonic() - started) * 1000)
                 response_bytes += len(chunk)
-                if from_upstream and len(captured) < 256 * 1024:
-                    captured.extend(chunk[: 256 * 1024 - len(captured)])
+                if from_upstream:
+                    capture.feed(chunk)
                 yield chunk
         finally:
             try:
@@ -205,7 +583,7 @@ async def proxy_with_body(
                         ip=client_ip(request),
                         user_agent=request.headers.get("user-agent"),
                         request_body=body,
-                        response_body=bytes(captured),
+                        response_body=capture.body(),
                         upstream_service_id=upstream.get("id") if upstream else None,
                         status_code=status_code,
                         use_time_ms=use_time_ms,
@@ -249,19 +627,20 @@ def lazy_codex_streaming_response(
     }
 
     async def generate() -> AsyncIterable[bytes]:
-        captured = bytearray()
+        capture = ProxyResponseCapture()
         first_token_ms = 0
         response_bytes = 0
         saw_first = False
         status_code = 502
         upstream: dict[str, Any] | None = None
+        assigned_upstream: dict[str, Any] | None = None
         stream: httpx.Response | None = None
         upstream_limiter: UpstreamLimiter | None = None
         client: httpx.AsyncClient | None = open_upstream_client(client_type)
         last_error = "Unable to reach upstream service"
         send_task: asyncio.Task[httpx.Response] | None = None
         try:
-            for index, candidate in enumerate(upstreams):
+            for index, candidate, upstream_count in upstream_attempts(client_type, upstreams):
                 candidate_limiter: UpstreamLimiter | None = None
                 try:
                     upstream_body = await normalize_upstream_body_async(body, candidate, client_type, True)
@@ -274,6 +653,7 @@ def lazy_codex_streaming_response(
                     if candidate_limiter is None:
                         last_error = f"Upstream service {candidate.get('id')} is busy"
                         continue
+                    assigned_upstream = candidate
                     send_task = asyncio.create_task(client.send(upstream_request, stream=True))
                     stream = await send_task
                     send_task = None
@@ -287,7 +667,7 @@ def lazy_codex_streaming_response(
                     if should_inspect_quota_retry(client_type, status_code):
                         candidate_body = await stream.aread()
                         await stream.aclose()
-                        if is_retryable_quota_error(status_code, candidate_body) and index < len(upstreams) - 1:
+                        if is_retryable_quota_error(status_code, candidate_body) and index < upstream_count - 1:
                             last_error = f"Upstream service {candidate.get('id')} quota limited"
                             stream = None
                             release_upstream_slot(candidate_limiter)
@@ -298,8 +678,7 @@ def lazy_codex_streaming_response(
                         candidate_limiter = None
                         async for chunk in codex_sse_error_chunks(status_code, candidate_body):
                             response_bytes += len(chunk)
-                            if len(captured) < 256 * 1024:
-                                captured.extend(chunk[: 256 * 1024 - len(captured)])
+                            capture.feed(chunk)
                             if not saw_first:
                                 saw_first = True
                                 first_token_ms = int((time.monotonic() - started) * 1000)
@@ -316,10 +695,19 @@ def lazy_codex_streaming_response(
                         if not saw_first:
                             saw_first = True
                             first_token_ms = int((time.monotonic() - started) * 1000)
-                        if len(captured) < 256 * 1024:
-                            captured.extend(chunk[: 256 * 1024 - len(captured)])
+                        capture.feed(chunk)
                         yield chunk
                     break
+                except asyncio.CancelledError:
+                    await discard_task_exception(send_task)
+                    send_task = None
+                    try:
+                        if stream is not None:
+                            await stream.aclose()
+                            stream = None
+                    finally:
+                        release_upstream_slot(candidate_limiter)
+                    raise
                 except Exception as exc:
                     last_error = exception_summary(exc)
                     await discard_task_exception(send_task)
@@ -330,11 +718,11 @@ def lazy_codex_streaming_response(
                             stream = None
                     finally:
                         release_upstream_slot(candidate_limiter)
-                    if index < len(upstreams) - 1:
+                    if index < upstream_count - 1:
                         continue
                     chunk = codex_sse_error_bytes(last_error)
                     response_bytes += len(chunk)
-                    captured.extend(chunk[: 256 * 1024 - len(captured)])
+                    capture.feed(chunk)
                     yield chunk
         finally:
             try:
@@ -357,8 +745,10 @@ def lazy_codex_streaming_response(
                         ip=client_ip(request),
                         user_agent=request.headers.get("user-agent"),
                         request_body=body,
-                        response_body=bytes(captured),
-                        upstream_service_id=upstream.get("id") if upstream else None,
+                        response_body=capture.body(),
+                        upstream_service_id=(upstream or assigned_upstream).get("id")
+                        if upstream or assigned_upstream
+                        else None,
                         status_code=status_code,
                         use_time_ms=use_time_ms,
                         first_token_ms=first_token_ms or use_time_ms,
@@ -433,6 +823,121 @@ def invalidate_proxy_context_cache(user_id: str | None = None) -> None:
             _expired_redeem_check_cache.pop(user_id, None)
 
 
+def sync_codex_profile_refresh_payload_sync(payload: dict[str, Any]) -> dict[str, Any]:
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else payload
+    if not isinstance(profile, dict):
+        raise AppError(400, "VALIDATION_FAILED", "Missing Codex profile payload")
+
+    tokens = profile.get("tokens") if isinstance(profile.get("tokens"), dict) else {}
+    profile_name = first_non_blank(profile.get("name"), profile.get("profile_name"))
+    if not profile_name:
+        raise AppError(400, "VALIDATION_FAILED", "Missing Codex profile name")
+
+    access_token = first_non_blank(tokens.get("access_token"), profile.get("access_token"), profile.get("OPENAI_API_KEY"))
+    openai_key = first_non_blank(profile.get("OPENAI_API_KEY"), profile.get("openai_api_key"))
+    if not access_token and not openai_key:
+        raise AppError(400, "VALIDATION_FAILED", "Missing refreshed access token")
+
+    ts = now_iso()
+    last_refresh = first_non_blank(profile.get("last_refresh"), payload.get("timestamp"), ts)
+    with db() as con:
+        existing = con.execute(
+            """
+            select s.id, s.concurrent_limit, p.base_url, p.model, p.reasoning_effort
+            from openai_services s
+            join openai_codex_profiles p on p.openai_service_id = s.id
+            where p.profile_name = ?
+            order by s.id
+            limit 1
+            """,
+            (profile_name,),
+        ).fetchone()
+
+        base_url = first_non_blank(
+            profile.get("base_url"),
+            existing["base_url"] if existing else None,
+            "https://chatgpt.com/backend-api/codex",
+        )
+        model = first_non_blank(profile.get("model"), existing["model"] if existing else None, "gpt-5.5")
+        reasoning_effort = first_non_blank(
+            profile.get("reasoning_effort"),
+            existing["reasoning_effort"] if existing else None,
+            "high",
+        )
+        service_token = access_token or openai_key or ""
+
+        if existing:
+            service_id = existing["id"]
+            con.execute(
+                "update openai_services set api_endpoint = ?, token = ?, updated_at = ? where id = ?",
+                (base_url, service_token, ts, service_id),
+            )
+        else:
+            cur = insert_with_next_integer_id(
+                con,
+                "openai_services",
+                {
+                    "api_endpoint": base_url,
+                    "token": service_token,
+                    "concurrent_limit": 20,
+                    "enabled": 1,
+                    "created_at": ts,
+                    "updated_at": ts,
+                },
+            )
+            service_id = cur.lastrowid
+
+        insert_with_next_integer_id(
+            con,
+            "openai_codex_profiles",
+            {
+                "openai_service_id": service_id,
+                "profile_name": profile_name,
+                "auth_mode": first_non_blank(profile.get("auth_mode"), "chatgpt"),
+                "openai_api_key": openai_key,
+                "access_token": access_token,
+                "account_id": first_non_blank(tokens.get("account_id"), profile.get("account_id")),
+                "id_token": first_non_blank(tokens.get("id_token"), profile.get("id_token")),
+                "refresh_token": first_non_blank(tokens.get("refresh_token"), profile.get("refresh_token")),
+                "client_id": first_non_blank(profile.get("client_id")),
+                "base_url": base_url,
+                "model": model,
+                "reasoning_effort": reasoning_effort,
+                "last_refresh": last_refresh,
+                "created_at": ts,
+                "updated_at": ts,
+            },
+            """
+            on conflict(openai_service_id) do update set
+              profile_name=excluded.profile_name, auth_mode=excluded.auth_mode,
+              openai_api_key=excluded.openai_api_key, access_token=excluded.access_token,
+              account_id=excluded.account_id, id_token=excluded.id_token,
+              refresh_token=excluded.refresh_token, client_id=excluded.client_id, base_url=excluded.base_url,
+              model=excluded.model, reasoning_effort=excluded.reasoning_effort,
+              last_refresh=excluded.last_refresh, updated_at=excluded.updated_at
+            """,
+        )
+
+    invalidate_proxy_context_cache()
+    codex_proxy_logger.info("synced Codex profile %s from refresh notification", profile_name)
+    return {"profileName": profile_name, "openAiServiceId": service_id, "cacheInvalidated": True}
+
+
+@app.post("/api/internal/codex-profile-refresh")
+@db_write_api
+async def internal_codex_profile_refresh_sync(
+    request: Request,
+    x_codex_sync_secret: str | None = Header(default=None),
+) -> dict[str, Any]:
+    if RELAY_CODEX_SYNC_SECRET and not hmac.compare_digest(x_codex_sync_secret or "", RELAY_CODEX_SYNC_SECRET):
+        raise AppError(403, "FORBIDDEN", "Invalid Codex sync secret")
+    payload = await request.json()
+    if not isinstance(payload, dict):
+        raise AppError(400, "VALIDATION_FAILED", "Invalid Codex profile payload")
+    result = await run_in_threadpool(sync_codex_profile_refresh_payload_sync, payload)
+    return api_ok(result)
+
+
 def cached_api_key(key_hash: str, now: float) -> dict[str, Any] | None:
     with _proxy_cache_lock:
         cached = _api_key_cache.get(key_hash)
@@ -499,11 +1004,49 @@ def load_upstreams_from_connection(con: sqlite3.Connection, client_type: str) ->
                    p.base_url as profile_base_url, p.model, p.reasoning_effort
             from openai_services s
             join openai_codex_profiles p on p.openai_service_id = s.id
+            where s.enabled = 1
             order by s.id
             """
         ).fetchall()
+        upstreams = [row_to_dict(row) for row in rows]
+        for upstream in upstreams:
+            upstream["_mode2_round_robin"] = True
+        return upstreams
+    elif mode == 3:
+        batch_size = positive_int(setting(con, "openai.mode3_batch_size", "8"), 8)
+        rows = con.execute(
+            """
+            select s.*, p.profile_name, p.auth_mode, p.openai_api_key, p.access_token,
+                   p.account_id, p.id_token, p.refresh_token, p.client_id,
+                   p.base_url as profile_base_url, p.model, p.reasoning_effort,
+                   r.sort_order as mode3_sort_order
+            from openai_mode3_services r
+            join openai_services s on s.id = r.openai_service_id
+            left join openai_codex_profiles p on p.openai_service_id = s.id
+            where r.enabled = 1
+              and s.enabled = 1
+            order by r.sort_order, r.id, s.id
+            """
+        ).fetchall()
+        upstreams = [row_to_dict(row) for row in rows]
+        for upstream in upstreams:
+            upstream["_mode3_rotation"] = True
+            upstream["_mode3_batch_size"] = batch_size
+        return upstreams
     else:
-        rows = con.execute("select * from openai_services order by id").fetchall()
+        rows = con.execute(
+            """
+            select s.*
+            from openai_services s
+            where s.enabled = 1
+              and not exists (
+                select 1
+                from openai_codex_profiles p
+                where p.openai_service_id = s.id
+              )
+            order by s.id
+            """
+        ).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -693,11 +1236,11 @@ def release_upstream_slot(limiter: UpstreamLimiter | None) -> None:
 
 
 def should_inspect_quota_retry(client_type: str, status_code: int) -> bool:
-    return client_type == "CODEX" and status_code in {402, 403, 429}
+    return client_type == "CODEX" and status_code in {401, 402, 403, 429}
 
 
 def is_retryable_quota_error(status_code: int, body: bytes | None) -> bool:
-    if status_code not in {402, 403, 429}:
+    if status_code not in {401, 402, 403, 429}:
         return False
     if not body:
         return status_code == 402
@@ -773,6 +1316,9 @@ def normalize_upstream_body(body: bytes, upstream: dict[str, Any], client_type: 
                 root["stream"] = True
             if "chatgpt.com/backend-api/codex" in upstream_endpoint(upstream).lower():
                 root.pop("truncation", None)
+            replacement_model = str(upstream.get("codex_replacement_model") or "").strip()
+            if boolish(upstream.get("force_replace_codex_model")) and replacement_model:
+                root["model"] = replacement_model
         elif client_type == "CLAUDE" and "token-plan-cn.xiaomimimo.com" in upstream_endpoint(upstream).lower():
             if isinstance(root.get("model"), str):
                 root["model"] = root["model"].lower()
@@ -832,6 +1378,8 @@ async def close_shared_upstream_clients() -> None:
     for client in clients:
         await client.aclose()
     await run_in_threadpool(stop_codex_instructions_watcher)
+    await run_in_threadpool(stop_codex_profile_refresh_worker)
+    stop_codex_user_message_executor()
 
 
 def codex_default_instructions() -> str | None:
@@ -891,7 +1439,152 @@ def stop_codex_instructions_watcher() -> None:
         thread.join(timeout=5)
 
 
-def refresh_codex_profile_sync(upstream: dict[str, Any]) -> bool:
+def parse_codex_refresh_time(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def codex_profile_refresh_due(last_refresh: Any, now: datetime | None = None) -> bool:
+    refreshed_at = parse_codex_refresh_time(last_refresh)
+    if refreshed_at is None:
+        return True
+    current = now or datetime.now(timezone.utc)
+    return refreshed_at <= current - timedelta(days=CODEX_PROFILE_REFRESH_INTERVAL_DAYS)
+
+
+def codex_profile_refresh_enabled() -> bool:
+    try:
+        with db() as con:
+            return bool_setting(con, CODEX_PROFILE_REFRESH_ENABLED_SETTING, False)
+    except sqlite3.Error:
+        return False
+
+
+def load_due_codex_profiles_sync() -> list[dict[str, Any]]:
+    now = datetime.now(timezone.utc)
+    with db() as con:
+        rows = con.execute(
+            """
+            select s.*, p.profile_name, p.auth_mode, p.openai_api_key, p.access_token,
+                   p.account_id, p.id_token, p.refresh_token, p.client_id,
+                   p.base_url as profile_base_url, p.model, p.reasoning_effort,
+                   p.last_refresh
+            from openai_services s
+            join openai_codex_profiles p on p.openai_service_id = s.id
+            where s.enabled = 1
+            order by s.id
+            """
+        ).fetchall()
+    return [row_to_dict(row) for row in rows if codex_profile_refresh_due(row["last_refresh"], now)]
+
+
+def append_codex_profile_refresh_log(event: dict[str, Any]) -> None:
+    try:
+        CODEX_PROFILE_REFRESH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with CODEX_PROFILE_REFRESH_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except Exception:
+        codex_proxy_logger.exception("failed to write Codex profile refresh log")
+
+
+def refresh_codex_profile_with_log_sync(upstream: dict[str, Any], reason: str) -> bool:
+    status_code: int | None = None
+    message = "refreshed"
+    success = False
+    try:
+        success = refresh_codex_profile_sync(upstream, reason=reason)
+        if success:
+            status_code = 200
+        if not success:
+            message = "refresh returned no access_token or missing required fields"
+    except Exception as exc:
+        status_code = getattr(exc, "code", None)
+        message = f"{exc.__class__.__name__}: {truncate(str(exc), 500)}"
+        codex_proxy_logger.warning(
+            "failed to refresh Codex profile %s during %s: %s",
+            upstream.get("profile_name") or upstream.get("id"),
+            reason,
+            exc,
+        )
+    append_codex_profile_refresh_log(
+        {
+            "timestamp": now_iso(),
+            "event": "codex_profile_refresh",
+            "reason": reason,
+            "profileName": upstream.get("profile_name"),
+            "openAiServiceId": upstream.get("id"),
+            "previousLastRefresh": upstream.get("last_refresh"),
+            "success": success,
+            "statusCode": status_code,
+            "message": message,
+            "logFile": str(CODEX_PROFILE_REFRESH_LOG_PATH),
+        }
+    )
+    return success
+
+
+def codex_profile_refresh_loop() -> None:
+    if _codex_profile_refresh_stop.wait(CODEX_PROFILE_REFRESH_INITIAL_DELAY_SECONDS):
+        return
+    while not _codex_profile_refresh_stop.is_set():
+        try:
+            if not codex_profile_refresh_enabled():
+                codex_proxy_logger.debug("scheduled Codex profile refresh is disabled")
+                if _codex_profile_refresh_stop.wait(CODEX_PROFILE_REFRESH_SCAN_INTERVAL_SECONDS):
+                    break
+                continue
+            profiles = load_due_codex_profiles_sync()
+            success_count = 0
+            for upstream in profiles:
+                if _codex_profile_refresh_stop.is_set():
+                    break
+                if refresh_codex_profile_with_log_sync(upstream, "scheduled 6-day refresh"):
+                    success_count += 1
+            if profiles:
+                codex_proxy_logger.info(
+                    "scheduled Codex profile refresh complete due=%s success=%s failure=%s log=%s",
+                    len(profiles),
+                    success_count,
+                    len(profiles) - success_count,
+                    CODEX_PROFILE_REFRESH_LOG_PATH,
+                )
+        except Exception:
+            codex_proxy_logger.exception("scheduled Codex profile refresh scan failed")
+        if _codex_profile_refresh_stop.wait(CODEX_PROFILE_REFRESH_SCAN_INTERVAL_SECONDS):
+            break
+
+
+def start_codex_profile_refresh_worker() -> None:
+    with _codex_profile_refresh_thread_lock:
+        global _codex_profile_refresh_thread
+        if _codex_profile_refresh_thread and _codex_profile_refresh_thread.is_alive():
+            return
+        _codex_profile_refresh_stop.clear()
+        _codex_profile_refresh_thread = threading.Thread(
+            target=codex_profile_refresh_loop,
+            name="relay-codex-profile-refresh",
+            daemon=True,
+        )
+        _codex_profile_refresh_thread.start()
+
+
+def stop_codex_profile_refresh_worker() -> None:
+    with _codex_profile_refresh_thread_lock:
+        thread = _codex_profile_refresh_thread
+        _codex_profile_refresh_stop.set()
+    if thread and thread.is_alive():
+        thread.join(timeout=5)
+
+
+def refresh_codex_profile_sync(upstream: dict[str, Any], reason: str = "upstream 401") -> bool:
     refresh_token = first_non_blank(upstream.get("refresh_token"))
     profile_name = upstream.get("profile_name")
     service_id = upstream.get("id")
@@ -941,7 +1634,7 @@ def refresh_codex_profile_sync(upstream: dict[str, Any]) -> bool:
         upstream["refresh_token"] = new_refresh
         upstream["token"] = access_token
         invalidate_proxy_context_cache()
-        codex_proxy_logger.info("refreshed Codex profile %s after upstream 401", profile_name or service_id)
+        codex_proxy_logger.info("refreshed Codex profile %s after %s", profile_name or service_id, reason)
         return True
 
 
@@ -958,11 +1651,7 @@ async def retry_codex_after_refresh(
         return response
     if not upstream.get("refresh_token"):
         return response
-    try:
-        refreshed = await run_in_threadpool(refresh_codex_profile_sync, upstream)
-    except Exception as exc:
-        codex_proxy_logger.warning("failed to refresh Codex profile %s after 401: %s", upstream.get("profile_name"), exc)
-        return response
+    refreshed = await run_in_threadpool(refresh_codex_profile_with_log_sync, upstream, "upstream 401")
     if not refreshed:
         return response
     await response.aread()
@@ -1111,12 +1800,14 @@ class ProxyLogWriter:
 
 proxy_log_writer = ProxyLogWriter()
 atexit.register(proxy_log_writer.stop)
+atexit.register(stop_codex_user_message_executor)
 
 
 @app.on_event("startup")
 async def start_proxy_log_writer() -> None:
     proxy_log_writer.start()
     await run_in_threadpool(start_codex_instructions_watcher)
+    await run_in_threadpool(start_codex_profile_refresh_worker)
 
 
 def enqueue_proxy_log_event(event: ProxyLogEvent) -> None:
@@ -1225,6 +1916,7 @@ def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEv
                 event.api_key["id"],
                 event.api_key["name"] or display_key(event.api_key["key_hash"]),
                 event.api_key["key_value"] or display_key(event.api_key["key_hash"]),
+                "usage",
                 event.client_type,
                 usage["model"],
                 event.use_time_ms,
@@ -1245,13 +1937,33 @@ def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEv
             user_id = event.api_key["user_id"]
             balance_deltas[user_id] = balance_deltas.get(user_id, Decimal("0")) - cost
 
+    columns = [
+        "user_id",
+        "api_key_id",
+        "token_name",
+        "group_key",
+        "request_type",
+        "client_type",
+        "model",
+        "use_time_ms",
+        "first_token_ms",
+        "prompt_tokens",
+        "completion_tokens",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+        "cost",
+        "ip",
+        "status",
+        "upstream_service_id",
+        "detail",
+        "created_at",
+    ]
+    columns, rows = with_next_integer_ids(con, "request_logs", columns, rows)
     con.executemany(
-        """
+        f"""
         insert into request_logs
-          (user_id, api_key_id, token_name, group_key, request_type, client_type, model,
-           use_time_ms, first_token_ms, prompt_tokens, completion_tokens, cache_read_tokens,
-           cache_creation_tokens, cost, ip, status, upstream_service_id, detail, created_at)
-        values (?, ?, ?, ?, 'usage', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ({', '.join(quote_ident(column) for column in columns)})
+        values ({', '.join('?' for _ in columns)})
         """,
         rows,
     )
@@ -1426,9 +2138,21 @@ def positive_decimal(value: str | None, fallback: Decimal) -> Decimal:
         return fallback
 
 
+def positive_int(value: Any, fallback: int) -> int:
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else fallback
+    except Exception:
+        return fallback
+
+
 def bool_setting(con: sqlite3.Connection, key: str, default: bool) -> bool:
     raw = setting(con, key, "true" if default else "false")
     return str(raw).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def boolish(value: Any) -> bool:
+    return str(value or "").strip().lower() not in {"", "0", "false", "no", "off", "none", "null"}
 
 
 def turnstile_enabled() -> bool:

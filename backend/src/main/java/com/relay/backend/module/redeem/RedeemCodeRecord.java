@@ -7,9 +7,11 @@ import java.util.UUID;
 public record RedeemCodeRecord(
     Long id,
     String code,
+    String batch,
     BigDecimal amount,
     Instant expiresAt,
     UUID holderUserId,
+    String redeemedIp,
     Instant redeemedAt,
     Instant expiredDeductedAt,
     Instant createdAt,
