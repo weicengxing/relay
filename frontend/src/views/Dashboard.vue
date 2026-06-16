@@ -33,6 +33,11 @@ const links = [
         <div class="stat-sub">所有服务可用</div>
       </div>
       <div class="stat-card">
+        <div class="stat-label">OAuth 优惠</div>
+        <div class="stat-number stat-discount">{{ Number(auth.costMultiplier || 1).toFixed(1) }}x</div>
+        <div class="stat-sub">API Key 按当前倍率实际消费</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-label">注册邮箱</div>
         <div class="stat-number stat-email">{{ auth.email }}</div>
         <div class="stat-sub">主账户</div>
@@ -83,7 +88,7 @@ const links = [
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 36px;
 }
@@ -130,6 +135,7 @@ const links = [
 }
 
 .stat-ok { color: var(--success); font-size: 20px; letter-spacing: 0; }
+.stat-discount { color: #047857; font-size: 24px; letter-spacing: 0; }
 .stat-email { font-size: 15px; font-weight: 600; letter-spacing: 0; word-break: break-all; }
 
 .stat-sub {

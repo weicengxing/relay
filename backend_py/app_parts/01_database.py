@@ -138,6 +138,7 @@ def init_db() -> None:
               provider_username text not null default '',
               provider_name text not null default '',
               provider_avatar_url text not null default '',
+              signup_bonus_applied integer not null default 0,
               created_at text not null,
               updated_at text not null,
               primary key (provider, provider_user_id),
@@ -149,6 +150,8 @@ def init_db() -> None:
               key_hash text not null,
               key_value text,
               name text,
+              billing_group text not null default 'default',
+              cost_multiplier text not null default '1',
               status text not null default 'active',
               created_at text not null
             );
@@ -264,8 +267,6 @@ def init_db() -> None:
               token text not null,
               concurrent_limit integer not null default 20,
               enabled integer not null default 1,
-              force_replace_codex_model integer not null default 0,
-              codex_replacement_model text not null default '',
               created_at text not null,
               updated_at text not null
             );
@@ -294,6 +295,10 @@ def init_db() -> None:
               enabled integer not null default 1,
               created_at text not null,
               updated_at text not null
+            );
+            create table if not exists openai_mode4_services (
+              openai_service_id integer primary key references openai_services(id) on delete cascade,
+              model text not null
             );
             create table if not exists claude_services (
               id integer primary key autoincrement,
@@ -383,6 +388,8 @@ def init_db() -> None:
               on model_catalog(enabled, sort_order, id);
             create index if not exists idx_openai_mode3_services_enabled_sort
               on openai_mode3_services(enabled, sort_order, id);
+            create index if not exists idx_openai_mode4_services_model
+              on openai_mode4_services(model);
             create index if not exists idx_announcements_active_published
               on announcements(active, published_at desc, id desc);
             create index if not exists idx_redeem_codes_holder_user_id
@@ -408,11 +415,17 @@ def init_db() -> None:
 def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
     ensure_columns(
         con,
+        "api_keys",
+        {
+            "billing_group": "text not null default 'default'",
+            "cost_multiplier": "text not null default '1'",
+        },
+    )
+    ensure_columns(
+        con,
         "openai_services",
         {
             "enabled": "integer not null default 1",
-            "force_replace_codex_model": "integer not null default 0",
-            "codex_replacement_model": "text not null default ''",
         },
     )
     ensure_columns(
@@ -454,6 +467,12 @@ def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
         );
         create index if not exists idx_openai_mode3_services_enabled_sort
           on openai_mode3_services(enabled, sort_order, id);
+        create table if not exists openai_mode4_services (
+          openai_service_id integer primary key references openai_services(id) on delete cascade,
+          model text not null
+        );
+        create index if not exists idx_openai_mode4_services_model
+          on openai_mode4_services(model);
         create table if not exists dc_oauth_states (
           state text primary key,
           session_token text unique,
@@ -468,6 +487,7 @@ def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
           provider_username text not null default '',
           provider_name text not null default '',
           provider_avatar_url text not null default '',
+          signup_bonus_applied integer not null default 0,
           created_at text not null,
           updated_at text not null,
           primary key (provider, provider_user_id),
@@ -502,6 +522,13 @@ def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
     ]
     ensure_columns(
         con,
+        "user_oauth_bindings",
+        {
+            "signup_bonus_applied": "integer not null default 0",
+        },
+    )
+    ensure_columns(
+        con,
         "novels",
         {
             "content_object_key": "text not null default ''",
@@ -514,6 +541,26 @@ def normalize_sqlite_schema(con: sqlite3.Connection) -> None:
     if "content" in novel_columns or novel_columns != expected_novel_columns:
         rebuild_novels_table(con)
     con.execute("drop table if exists web_chat_history")
+    normalize_oauth_billing_plans(con)
+
+
+def normalize_oauth_billing_plans(con: sqlite3.Connection) -> None:
+    rows = con.execute(
+        """
+        select distinct user_id
+        from user_oauth_bindings
+        where provider = 'dc.hhhl.cc'
+        """
+    ).fetchall()
+    for row in rows:
+        con.execute(
+            """
+            update api_keys
+            set billing_group = ?, cost_multiplier = ?
+            where user_id = ? and status = 'active'
+            """,
+            (DC_AUTH_BILLING_GROUP, decimal_text(DC_AUTH_COST_MULTIPLIER), row["user_id"]),
+        )
 
 
 def ensure_columns(con: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
@@ -570,12 +617,13 @@ def rebuild_novels_table(con: sqlite3.Connection) -> None:
 def seed_defaults(con: sqlite3.Connection) -> None:
     ts = now_iso()
     settings = [
-        ("openai.request_mode", "2", "1 = token forwarding, 2 = codex profile request mode, 3 = configured service rotation"),
+        ("openai.request_mode", "2", "1 = token forwarding, 2 = codex profile request mode, 3 = configured service rotation, 4 = configured service model override"),
         ("openai.mode3_batch_size", "8", "Mode 3 requests sent consecutively to one upstream before rotating"),
         ("openai.concurrent_limit", "20", "Global concurrent request limit"),
         ("billing.cost_multiplier", "1.2", "Cost multiplier"),
         ("billing.cache_read_token_factor", "0.8", "Factor applied to cache read tokens before logging and billing"),
         ("codex.refresh_enabled", "false", "Enable scheduled Codex profile refresh every 6 days"),
+        ("codex.responses_non_admin_enabled", "1", "Allow non-admin users to call Codex /v1/responses"),
         ("announcements.badge_default", "0", "Default announcement badge count"),
         ("maintenance.write_disabled", "false", "Disable database write APIs during migration"),
         ("auth.turnstile_enabled", "true", "Require Cloudflare Turnstile verification during registration"),

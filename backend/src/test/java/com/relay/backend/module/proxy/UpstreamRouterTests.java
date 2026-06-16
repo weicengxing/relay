@@ -94,8 +94,6 @@ class UpstreamRouterTests {
         id,
         "https://chatgpt.com/backend-api/codex",
         "service-token-" + id,
-        false,
-        "",
         new CodexProfileConfig(
             id,
             id,
@@ -127,8 +125,6 @@ class UpstreamRouterTests {
         id,
         "https://api.openai.com/v1",
         "service-token-" + id,
-        false,
-        "",
         null,
         now,
         now);

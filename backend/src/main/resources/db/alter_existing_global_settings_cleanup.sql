@@ -80,6 +80,12 @@ alter table openai_services
 alter table openai_services
   drop column if exists concurrent_limit;
 
+alter table openai_services
+  drop column if exists force_replace_codex_model;
+
+alter table openai_services
+  drop column if exists codex_replacement_model;
+
 alter table users
   alter column balance set default 5;
 

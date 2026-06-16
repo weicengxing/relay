@@ -136,7 +136,15 @@ def dc_auth_callback(request: Request, token: str = "", session: str = "") -> Re
 
 
 def auth_response(user: sqlite3.Row) -> dict[str, Any]:
-    return {"userId": user["id"], "email": user["email"], "balance": float(user["balance"]), "token": issue_jwt(user)}
+    plan = auth_user_plan(user["id"])
+    return {
+        "userId": user["id"],
+        "email": user["email"],
+        "balance": float(user["balance"]),
+        "token": issue_jwt(user),
+        "billingGroup": plan["billing_group"],
+        "costMultiplier": float(parse_decimal(plan["cost_multiplier"])),
+    }
 
 
 def cleanup_expired_dc_auth_states(con: sqlite3.Connection) -> None:
@@ -203,6 +211,8 @@ def append_dc_auth_fragment(redirect_url: str, auth: dict[str, Any]) -> str:
             "userId": auth["userId"],
             "email": auth["email"],
             "balance": str(auth["balance"]),
+            "billingGroup": auth["billingGroup"],
+            "costMultiplier": str(auth["costMultiplier"]),
         }
     )
     return f"{redirect_url.split('#', 1)[0]}#{fragment}"
@@ -237,6 +247,7 @@ def login_or_create_dc_user(dc_user: dict[str, Any]) -> sqlite3.Row:
                 """,
                 (username, display_name, avatar_url, ts, provider_user_id),
             )
+            ensure_dc_oauth_user_plan(con, existing["id"], provider_user_id)
             return con.execute("select * from users where id = ?", (existing["id"],)).fetchone()
 
         user_id = str(uuid.uuid4())
@@ -245,7 +256,13 @@ def login_or_create_dc_user(dc_user: dict[str, Any]) -> sqlite3.Row:
             insert into users(id, email, password_hash, registration_ip, balance, status, created_at)
             values (?, ?, ?, null, ?, 'active', ?)
             """,
-            (user_id, synthetic_email, "dc-oauth:" + b64url(secrets.token_bytes(24)), decimal_text(DEFAULT_BALANCE), ts),
+            (
+                user_id,
+                synthetic_email,
+                "dc-oauth:" + b64url(secrets.token_bytes(24)),
+                decimal_text(DC_AUTH_INITIAL_BALANCE),
+                ts,
+            ),
         )
         con.execute(
             """
@@ -257,6 +274,7 @@ def login_or_create_dc_user(dc_user: dict[str, Any]) -> sqlite3.Row:
             """,
             (provider_user_id, user_id, username, display_name, avatar_url, ts, ts),
         )
+        ensure_dc_oauth_user_plan(con, user_id, provider_user_id)
         return con.execute("select * from users where id = ?", (user_id,)).fetchone()
 
 
@@ -265,6 +283,86 @@ def dc_synthetic_email(provider_user_id: str, username: str) -> str:
     cleaned = cleaned[:40] or "user"
     digest = hashlib.sha256(provider_user_id.encode("utf-8")).hexdigest()[:12]
     return f"dc-{cleaned}-{digest}@dc.hhhl.cc"
+
+
+def ensure_dc_oauth_user_plan(con: sqlite3.Connection, user_id: str, provider_user_id: str | None = None) -> None:
+    binding = None
+    if provider_user_id:
+        binding = con.execute(
+            """
+            select signup_bonus_applied
+            from user_oauth_bindings
+            where provider = 'dc.hhhl.cc' and provider_user_id = ?
+            """,
+            (provider_user_id,),
+        ).fetchone()
+    if binding and not int(binding["signup_bonus_applied"] or 0):
+        user = con.execute("select balance from users where id = ?", (user_id,)).fetchone()
+        if user and parse_decimal(user["balance"]) < DC_AUTH_INITIAL_BALANCE:
+            con.execute(
+                "update users set balance = ? where id = ?",
+                (decimal_text(DC_AUTH_INITIAL_BALANCE), user_id),
+            )
+            if "store_cached_balance" in globals():
+                store_cached_balance(user_id, DC_AUTH_INITIAL_BALANCE)
+        con.execute(
+            """
+            update user_oauth_bindings
+            set signup_bonus_applied = 1, updated_at = ?
+            where provider = 'dc.hhhl.cc' and provider_user_id = ?
+            """,
+            (now_iso(), provider_user_id),
+        )
+
+    con.execute(
+        """
+        update api_keys
+        set billing_group = ?, cost_multiplier = ?
+        where user_id = ? and status = 'active'
+        """,
+        (DC_AUTH_BILLING_GROUP, decimal_text(DC_AUTH_COST_MULTIPLIER), user_id),
+    )
+    existing = con.execute(
+        "select 1 from api_keys where user_id = ? and status = 'active' limit 1",
+        (user_id,),
+    ).fetchone()
+    if existing:
+        return
+    key = issue_api_key()
+    insert_with_next_integer_id(
+        con,
+        "api_keys",
+        {
+            "user_id": user_id,
+            "key_hash": sha256_key(key),
+            "key_value": key,
+            "name": DC_AUTH_DEFAULT_KEY_NAME,
+            "billing_group": DC_AUTH_BILLING_GROUP,
+            "cost_multiplier": decimal_text(DC_AUTH_COST_MULTIPLIER),
+            "status": "active",
+            "created_at": now_iso(),
+        },
+    )
+    if "invalidate_proxy_context_cache" in globals():
+        invalidate_proxy_context_cache(user_id)
+
+
+def user_api_key_plan(con: sqlite3.Connection, user_id: str) -> dict[str, str]:
+    row = con.execute(
+        "select 1 from user_oauth_bindings where provider = 'dc.hhhl.cc' and user_id = ?",
+        (user_id,),
+    ).fetchone()
+    if row:
+        return {
+            "billing_group": DC_AUTH_BILLING_GROUP,
+            "cost_multiplier": decimal_text(DC_AUTH_COST_MULTIPLIER),
+        }
+    return {"billing_group": "default", "cost_multiplier": "1"}
+
+
+def auth_user_plan(user_id: str) -> dict[str, str]:
+    with db() as con:
+        return user_api_key_plan(con, user_id)
 
 
 @app.get("/api/balance")
@@ -344,6 +442,7 @@ def create_api_key(payload: CreateApiKeyRequest, authorization: str | None = Hea
     name = payload.name.strip()
     key = issue_api_key()
     with db() as con:
+        plan = user_api_key_plan(con, user_id)
         exists = con.execute(
             "select 1 from api_keys where user_id = ? and name = ? and status = 'active'", (user_id, name)
         ).fetchone()
@@ -357,6 +456,8 @@ def create_api_key(payload: CreateApiKeyRequest, authorization: str | None = Hea
                 "key_hash": sha256_key(key),
                 "key_value": key,
                 "name": name,
+                "billing_group": plan["billing_group"],
+                "cost_multiplier": plan["cost_multiplier"],
                 "status": "active",
                 "created_at": now_iso(),
             },
@@ -385,7 +486,16 @@ def revoke_api_key(key_id: int, authorization: str | None = Header(default=None)
 
 def api_key_response(row: sqlite3.Row) -> dict[str, Any]:
     key = row["key_value"] or display_key(row["key_hash"])
-    return {"id": row["id"], "name": row["name"], "key": key, "status": row["status"], "createdAt": row["created_at"]}
+    multiplier = parse_decimal(row["cost_multiplier"] if "cost_multiplier" in row.keys() else "1")
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "key": key,
+        "status": row["status"],
+        "billingGroup": row["billing_group"] if "billing_group" in row.keys() else "default",
+        "costMultiplier": float(multiplier),
+        "createdAt": row["created_at"],
+    }
 
 
 @app.get("/api/request-logs")

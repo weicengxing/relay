@@ -1,0 +1,59 @@
+[
+  {
+    "i": 1,
+    "client_ms": {
+      "headers": 1388.8,
+      "first": 1389.0,
+      "complete": null,
+      "total": 1389.4
+    },
+    "status": 200,
+    "events": {
+      "null": 1
+    },
+    "logs": [
+      {
+        "id": 19520,
+        "use_time_ms": 875,
+        "first_token_ms": 875,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "status": "error",
+        "upstream_service_id": 113
+      },
+      {
+        "id": 19519,
+        "use_time_ms": 48172,
+        "first_token_ms": 25452,
+        "prompt_tokens": 95235,
+        "completion_tokens": 1079,
+        "status": "success",
+        "upstream_service_id": 113
+      }
+    ]
+  },
+  {
+    "i": 2,
+    "client_ms": {
+      "headers": 508.6,
+      "first": 508.8,
+      "complete": null,
+      "total": 509.2
+    },
+    "status": 200,
+    "events": {
+      "null": 1
+    },
+    "logs": [
+      {
+        "id": 19521,
+        "use_time_ms": 250,
+        "first_token_ms": 250,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "status": "error",
+        "upstream_service_id": 113
+      }
+    ]
+  }
+]

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "url": "https://vovoapi.com/v1/responses",
+    "model": "gpt-5.5",
+    "service_id": 113
+  },
+  "timing_ms": {
+    "headers": 2066.4,
+    "first_chunk": 2066.6,
+    "first_event": 2066.8,
+    "first_text": 2304.0,
+    "completed": 2426.8,
+    "total": 2441.6
+  },
+  "status_code": 200,
+  "bytes_read": 6489,
+  "events": {
+    "response.created": 1,
+    "response.in_progress": 1,
+    "response.output_item.added": 2,
+    "response.output_item.done": 2,
+    "response.content_part.added": 1,
+    "response.output_text.delta": 3,
+    "response.output_text.done": 1,
+    "response.content_part.done": 1,
+    "response.completed": 1
+  },
+  "text_preview": "latency-oklatency-ok",
+  "errors": [],
+  "raw_preview": [
+    "{\"type\":\"response.created\",\"response\":{\"id\":\"resp_0bc633bcd93c1f05016a2ce4c69cbc819a92775f924b0a0473\",\"object\":\"response\",\"created_at\":1781327046,\"status\":\"in_progress\",\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":\"You are a latency test responder.\",\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-5.5\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prom",
+    "{\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_0bc633bcd93c1f05016a2ce4c69cbc819a92775f924b0a0473\",\"object\":\"response\",\"created_at\":1781327046,\"status\":\"in_progress\",\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"incomplete_details\":null,\"instructions\":\"You are a latency test responder.\",\"max_output_tokens\":null,\"max_tool_calls\":null,\"model\":\"gpt-5.5\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"",
+    "{\"type\":\"response.output_item.added\",\"item\":{\"id\":\"rs_0bc633bcd93c1f05016a2ce4c749fc819a813ef40fa61e7faf\",\"type\":\"reasoning\",\"content\":[],\"summary\":[]},\"output_index\":0,\"sequence_number\":2}",
+    "{\"type\":\"response.output_item.done\",\"item\":{\"id\":\"rs_0bc633bcd93c1f05016a2ce4c749fc819a813ef40fa61e7faf\",\"type\":\"reasoning\",\"content\":[],\"summary\":[]},\"output_index\":0,\"sequence_number\":3}",
+    "{\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0bc633bcd93c1f05016a2ce4c784b0819a9477f525a63f11f4\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":1,\"sequence_number\":4}",
+    "{\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0bc633bcd93c1f05016a2ce4c784b0819a9477f525a63f11f4\",\"output_index\":1,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":5}"
+  ]
+}

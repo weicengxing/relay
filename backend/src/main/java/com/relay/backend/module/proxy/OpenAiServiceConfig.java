@@ -6,8 +6,6 @@ public record OpenAiServiceConfig(
     Long id,
     String apiEndpoint,
     String token,
-    boolean forceReplaceCodexModel,
-    String codexReplacementModel,
     CodexProfileConfig codexProfile,
     Instant createdAt,
     Instant updatedAt) {}

@@ -41,6 +41,8 @@ function consumeDcLoginCallback() {
     userId: params.get('userId') || '',
     email: params.get('email') || '',
     balance: params.get('balance') || '0',
+    billingGroup: params.get('billingGroup') || 'default',
+    costMultiplier: params.get('costMultiplier') || '1',
   };
   if (!session.token || !session.userId) {
     error.value = '社区登录回调无效，请重试';

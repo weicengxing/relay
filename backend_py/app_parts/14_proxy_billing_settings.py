@@ -16,6 +16,12 @@ async def proxy(path: str, request: Request) -> Response:
         return local_proxy_error(402, "余额不足", event_stream)
     if not context.upstreams:
         return local_proxy_error(404, "No upstream service configured", event_stream)
+    if client_type == "CODEX" and is_codex_responses_request(path):
+        allowed = cached_codex_responses_allowed_for_user(context.api_key["user_id"])
+        if allowed is None:
+            allowed = await run_in_threadpool(codex_responses_allowed_for_user_sync, context.api_key["user_id"])
+        if not allowed:
+            return local_proxy_error(403, "目前无法使用", event_stream)
     if client_type == "CODEX":
         submit_codex_user_message_log(
             context.api_key,
@@ -32,6 +38,7 @@ async def proxy(path: str, request: Request) -> Response:
 
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_REFRESH_TOKEN_URL = "https://auth.openai.com/oauth/token"
+CODEX_RESPONSES_NON_ADMIN_ENABLED_SETTING = "codex.responses_non_admin_enabled"
 codex_proxy_logger = logging.getLogger("relay.codex_proxy")
 _codex_refresh_lock = threading.Lock()
 _codex_instructions_lock = threading.Lock()
@@ -76,6 +83,8 @@ _api_key_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _upstream_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _balance_cache: dict[str, tuple[float, Decimal]] = {}
 _expired_redeem_check_cache: dict[str, float] = {}
+_codex_responses_enabled_cache: bool | None = None
+_owner_user_cache: dict[str, bool] = {}
 _billing_catalog_cache: tuple[float, dict[str, dict[str, Any]], Decimal, Decimal] | None = None
 _upstream_limiter_lock = threading.Lock()
 _upstream_limiters: dict[tuple[str, int, int], "UpstreamLimiter"] = {}
@@ -121,6 +130,58 @@ class ProxyLogEvent:
 class UpstreamLimiter:
     limit: int
     active: int = 0
+
+
+def is_codex_responses_request(path: str) -> bool:
+    clean_path = "/" + str(path or "").strip("/").lower()
+    return (
+        clean_path == "/responses"
+        or clean_path.startswith("/responses/")
+        or clean_path == "/v1/responses"
+        or clean_path.startswith("/v1/responses/")
+    )
+
+
+def cached_codex_responses_allowed_for_user(user_id: str) -> bool | None:
+    with _proxy_cache_lock:
+        enabled = _codex_responses_enabled_cache
+        owner = _owner_user_cache.get(user_id)
+    if enabled is None:
+        return None
+    if enabled:
+        return True
+    if owner is None:
+        return None
+    return owner
+
+
+def codex_responses_allowed_for_user_sync(user_id: str) -> bool:
+    enabled = codex_responses_enabled_sync()
+    if enabled:
+        return True
+    with _proxy_cache_lock:
+        cached_owner = _owner_user_cache.get(user_id)
+    if cached_owner is not None:
+        return cached_owner
+    with db() as con:
+        row = con.execute("select email from users where id = ?", (user_id,)).fetchone()
+        owner = is_owner_email(row["email"] if row else None)
+    with _proxy_cache_lock:
+        _owner_user_cache[user_id] = owner
+    return owner
+
+
+def codex_responses_enabled_sync() -> bool:
+    global _codex_responses_enabled_cache
+    with _proxy_cache_lock:
+        cached = _codex_responses_enabled_cache
+    if cached is not None:
+        return cached
+    with db() as con:
+        enabled = bool_setting(con, CODEX_RESPONSES_NON_ADMIN_ENABLED_SETTING, True)
+    with _proxy_cache_lock:
+        _codex_responses_enabled_cache = enabled
+    return enabled
 
 
 class ProxyResponseCapture:
@@ -810,17 +871,27 @@ async def sse_chunks_with_keepalive(stream: httpx.Response) -> AsyncIterable[tup
 
 
 def invalidate_proxy_context_cache(user_id: str | None = None) -> None:
-    global _billing_catalog_cache
+    global _billing_catalog_cache, _codex_responses_enabled_cache
     with _proxy_cache_lock:
         if user_id is None:
             _api_key_cache.clear()
             _upstream_cache.clear()
             _balance_cache.clear()
             _expired_redeem_check_cache.clear()
+            _owner_user_cache.clear()
+            _codex_responses_enabled_cache = None
             _billing_catalog_cache = None
         else:
             _balance_cache.pop(user_id, None)
             _expired_redeem_check_cache.pop(user_id, None)
+            _owner_user_cache.pop(user_id, None)
+
+
+def invalidate_codex_responses_setting_cache() -> None:
+    global _codex_responses_enabled_cache
+    with _proxy_cache_lock:
+        _codex_responses_enabled_cache = None
+        _owner_user_cache.clear()
 
 
 def sync_codex_profile_refresh_payload_sync(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1032,6 +1103,25 @@ def load_upstreams_from_connection(con: sqlite3.Connection, client_type: str) ->
         for upstream in upstreams:
             upstream["_mode3_rotation"] = True
             upstream["_mode3_batch_size"] = batch_size
+        return upstreams
+    elif mode == 4:
+        rows = con.execute(
+            """
+            select s.*, p.profile_name, p.auth_mode, p.openai_api_key, p.access_token,
+                   p.account_id, p.id_token, p.refresh_token, p.client_id,
+                   p.base_url as profile_base_url, p.model, p.reasoning_effort,
+                   r.model as mode4_model
+            from openai_mode4_services r
+            join openai_services s on s.id = r.openai_service_id
+            left join openai_codex_profiles p on p.openai_service_id = s.id
+            where s.enabled = 1
+              and trim(r.model) <> ''
+            order by r.openai_service_id
+            """
+        ).fetchall()
+        upstreams = [row_to_dict(row) for row in rows]
+        for upstream in upstreams:
+            upstream["_mode2_round_robin"] = True
         return upstreams
     else:
         rows = con.execute(
@@ -1316,9 +1406,9 @@ def normalize_upstream_body(body: bytes, upstream: dict[str, Any], client_type: 
                 root["stream"] = True
             if "chatgpt.com/backend-api/codex" in upstream_endpoint(upstream).lower():
                 root.pop("truncation", None)
-            replacement_model = str(upstream.get("codex_replacement_model") or "").strip()
-            if boolish(upstream.get("force_replace_codex_model")) and replacement_model:
-                root["model"] = replacement_model
+            mode4_model = str(upstream.get("mode4_model") or "").strip()
+            if mode4_model:
+                root["model"] = mode4_model
         elif client_type == "CLAUDE" and "token-plan-cn.xiaomimimo.com" in upstream_endpoint(upstream).lower():
             if isinstance(root.get("model"), str):
                 root["model"] = root["model"].lower()
@@ -1908,14 +1998,15 @@ def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEv
     next_balances: dict[str, Decimal] = {}
     for event in events:
         usage = apply_cache_read_token_factor(parse_usage(event.request_body, event.response_body), cache_read_factor)
-        cost = calculate_cost_value(usage, price_for_model(prices, usage.get("model")), multiplier)
+        key_multiplier = api_key_cost_multiplier(event.api_key)
+        cost = calculate_cost_value(usage, price_for_model(prices, usage.get("model")), multiplier * key_multiplier)
         detail = compact_proxy_log_detail(event, usage)
         rows.append(
             (
                 event.api_key["user_id"],
                 event.api_key["id"],
                 event.api_key["name"] or display_key(event.api_key["key_hash"]),
-                event.api_key["key_value"] or display_key(event.api_key["key_hash"]),
+                event.api_key.get("billing_group") or event.api_key["key_value"] or display_key(event.api_key["key_hash"]),
                 "usage",
                 event.client_type,
                 usage["model"],
@@ -1972,6 +2063,14 @@ def write_proxy_log_events_sync(con: sqlite3.Connection, events: list[ProxyLogEv
     con.commit()
     for user_id, balance in next_balances.items():
         store_cached_balance(user_id, balance)
+
+
+def api_key_cost_multiplier(api_key: dict[str, Any]) -> Decimal:
+    try:
+        multiplier = parse_decimal(api_key.get("cost_multiplier") or "1")
+    except Exception:
+        return Decimal("1")
+    return multiplier if multiplier > 0 else Decimal("1")
 
 
 def record_proxy_request_sync(

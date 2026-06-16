@@ -45,8 +45,6 @@ class ProxyControllerTests {
                     "token",
                     1,
                     20,
-                    false,
-                    "",
                     null),
                 ClientType.CLAUDE,
                 false);
@@ -56,7 +54,7 @@ class ProxyControllerTests {
   }
 
   @Test
-  void replacesCodexModelWhenServiceRequiresIt() throws Exception {
+  void preservesCodexModelWithoutServiceLevelReplacement() throws Exception {
     ProxyController controller =
         new ProxyController(
             mock(ApiKeyService.class),
@@ -87,13 +85,11 @@ class ProxyControllerTests {
                     "token",
                     2,
                     20,
-                    true,
-                    "gpt-5.5",
                     null),
                 ClientType.CODEX,
                 false);
 
     assertThat(new String(normalized, java.nio.charset.StandardCharsets.UTF_8))
-        .contains("\"model\":\"gpt-5.5\"");
+        .contains("\"model\":\"gpt-5.3-codex\"");
   }
 }

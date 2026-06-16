@@ -379,7 +379,6 @@ public class ProxyController {
       if (isChatGptCodexEndpoint(upstreamApiEndpoint(upstream))) {
         rootObject.remove("truncation");
       }
-      applyCodexModelReplacement(rootObject, upstream);
       return objectMapper.writeValueAsBytes(rootObject);
     } catch (Exception exception) {
       log.warn("Unable to normalize upstream body; forwarding original body", exception);
@@ -454,16 +453,6 @@ public class ProxyController {
         reasoning.put("effort", effort);
         rootObject.set("reasoning", reasoning);
       }
-    }
-  }
-
-  private void applyCodexModelReplacement(ObjectNode rootObject, UpstreamConfig upstream) {
-    if (upstream == null || !upstream.forceReplaceCodexModel()) {
-      return;
-    }
-    String replacementModel = upstream.codexReplacementModel();
-    if (replacementModel != null && !replacementModel.isBlank()) {
-      rootObject.put("model", replacementModel.trim());
     }
   }
 

@@ -75,6 +75,7 @@ def admin_invalidate_proxy_cache(table: str | None = None) -> None:
         "model_catalog",
         "openai_codex_profiles",
         "openai_mode3_services",
+        "openai_mode4_services",
         "openai_services",
         "redeem_codes",
         "users",
@@ -82,6 +83,8 @@ def admin_invalidate_proxy_cache(table: str | None = None) -> None:
     if table is None or table in proxy_tables:
         if "invalidate_proxy_context_cache" in globals():
             invalidate_proxy_context_cache()
+        if table in {"app_settings", None} and "invalidate_codex_responses_setting_cache" in globals():
+            invalidate_codex_responses_setting_cache()
 
 
 @app.get("/api/admin/sqlite/tables")

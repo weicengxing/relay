@@ -130,6 +130,8 @@ async function copyKey(key, id) {
             <th>密钥</th>
             <th>状态</th>
             <th>创建时间</th>
+            <th>倍率</th>
+            <th>倍率</th>
             <th></th>
           </tr>
         </thead>
@@ -179,6 +181,11 @@ async function copyKey(key, id) {
             </td>
             <td><span class="pill" :class="k.status">{{ k.status }}</span></td>
             <td class="td-muted">{{ new Date(k.createdAt).toLocaleDateString() }}</td>
+            <td>
+              <span class="billing-badge" :class="{ discount: Number(k.costMultiplier || 1) < 1 }">
+                {{ Number(k.costMultiplier || 1).toFixed(1) }}x
+              </span>
+            </td>
             <td><button class="btn-danger-sm" @click="handleRevoke(k.id)">吊销</button></td>
           </tr>
         </tbody>
@@ -441,6 +448,23 @@ async function copyKey(key, id) {
 .pill.active { background: var(--success-soft); color: #065f46; }
 .pill.revoked { background: var(--danger-soft); color: #991b1b; }
 
+.billing-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.billing-badge.discount {
+  background: var(--success-soft);
+  color: #047857;
+}
+
 @media (max-width: 760px) {
   .page-head,
   .create-bar {
@@ -449,7 +473,7 @@ async function copyKey(key, id) {
   }
 
   .table {
-    min-width: 720px;
+    min-width: 780px;
   }
 
   .card {

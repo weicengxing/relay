@@ -51,6 +51,10 @@ CODEX_PROFILES_PATH = Path(os.getenv("RELAY_PY_CODEX_PROFILES", r"D:\freeclaude\
 ALLOW_DEV_VERIFY_CODE = os.getenv("RELAY_PY_ALLOW_DEV_VERIFY_CODE", "1") == "1"
 EMAIL_REGISTER_ENABLED = os.getenv("EMAIL_REGISTER_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_BALANCE = Decimal("5.000000")
+DC_AUTH_INITIAL_BALANCE = Decimal(os.getenv("DC_AUTH_INITIAL_BALANCE", "30.000000"))
+DC_AUTH_BILLING_GROUP = os.getenv("DC_AUTH_BILLING_GROUP", "oauth_0_1").strip() or "oauth_0_1"
+DC_AUTH_COST_MULTIPLIER = Decimal(os.getenv("DC_AUTH_COST_MULTIPLIER", "0.1"))
+DC_AUTH_DEFAULT_KEY_NAME = os.getenv("DC_AUTH_DEFAULT_KEY_NAME", "dc.hhhl.cc default key").strip() or "dc.hhhl.cc default key"
 OWNER_EMAIL = "2997657261@qq.com"
 OWNER_EMAIL_ALIASES = {OWNER_EMAIL, "2997657261"}
 ROOT_PARENT_MESSAGE_ID = "client-created-root"

@@ -64,8 +64,6 @@ public class UpstreamRouter {
                           config.token(),
                           settings.openAiRequestMode(),
                           settings.openAiConcurrentLimit(),
-                          config.forceReplaceCodexModel(),
-                          config.codexReplacementModel(),
                           config.codexProfile()))
               .toList();
           case CLAUDE -> claudeServiceRepository.findAll().stream()
@@ -77,8 +75,6 @@ public class UpstreamRouter {
                           config.token(),
                           1,
                           config.concurrentLimit(),
-                          false,
-                          "",
                           null))
               .toList();
           default -> throw new AppException(ErrorCode.VALIDATION_FAILED, "Unknown client type", HttpStatus.BAD_REQUEST);
@@ -172,8 +168,6 @@ public class UpstreamRouter {
           accessToken,
           config.requestMode(),
           config.concurrentLimit(),
-          config.forceReplaceCodexModel(),
-          config.codexReplacementModel(),
           refreshedProfile);
     } catch (Exception exception) {
       return null;

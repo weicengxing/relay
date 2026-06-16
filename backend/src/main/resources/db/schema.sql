@@ -139,8 +139,6 @@ create table if not exists openai_services (
   id bigserial primary key,
   api_endpoint text not null,
   token text not null,
-  force_replace_codex_model boolean not null default false,
-  codex_replacement_model text not null default '',
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );

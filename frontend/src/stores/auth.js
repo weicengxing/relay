@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref(localStorage.getItem('userId') || '');
   const email = ref(localStorage.getItem('email') || '');
   const balance = ref(parseFloat(localStorage.getItem('balance') || '0'));
+  const billingGroup = ref(localStorage.getItem('billingGroup') || 'default');
+  const costMultiplier = ref(parseFloat(localStorage.getItem('costMultiplier') || '1'));
 
   const isLoggedIn = computed(() => !!token.value);
 
@@ -15,10 +17,14 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = data.userId;
     email.value = data.email;
     balance.value = parseFloat(data.balance);
+    billingGroup.value = data.billingGroup || 'default';
+    costMultiplier.value = parseFloat(data.costMultiplier || '1');
     localStorage.setItem('token', data.token);
     localStorage.setItem('userId', data.userId);
     localStorage.setItem('email', data.email);
     localStorage.setItem('balance', String(data.balance));
+    localStorage.setItem('billingGroup', billingGroup.value);
+    localStorage.setItem('costMultiplier', String(costMultiplier.value));
   }
 
   function loginWithSession(data) {
@@ -43,10 +49,14 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = '';
     email.value = '';
     balance.value = 0;
+    billingGroup.value = 'default';
+    costMultiplier.value = 1;
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     localStorage.removeItem('email');
     localStorage.removeItem('balance');
+    localStorage.removeItem('billingGroup');
+    localStorage.removeItem('costMultiplier');
   }
 
   function setBalance(nextBalance) {
@@ -61,5 +71,19 @@ export const useAuthStore = defineStore('auth', () => {
     return data;
   }
 
-  return { token, userId, email, balance, isLoggedIn, register, login, loginWithSession, logout, setBalance, refreshBalance };
+  return {
+    token,
+    userId,
+    email,
+    balance,
+    billingGroup,
+    costMultiplier,
+    isLoggedIn,
+    register,
+    login,
+    loginWithSession,
+    logout,
+    setBalance,
+    refreshBalance,
+  };
 });

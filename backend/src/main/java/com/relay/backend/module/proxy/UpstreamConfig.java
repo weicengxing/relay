@@ -6,8 +6,6 @@ public record UpstreamConfig(
     String token,
     int requestMode,
     int concurrentLimit,
-    boolean forceReplaceCodexModel,
-    String codexReplacementModel,
     CodexProfileConfig codexProfile) {
 
   public boolean usesCodexProfileRequest() {
